@@ -1,0 +1,69 @@
+{
+  "projectType": "saas",
+  "projectName": "Flask ToDo App",
+  "projectDescription": "A minimalist web-based ToDo application with multi-database support and customizable styling",
+  "theme": "almond",
+  "primaryColor": "#4cc121",
+  "lightColor": "#6ed147",
+  "darkColor": "#3a9619",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Setup & Configuration",
+        "pages": [
+          "setup/installation",
+          "setup/database-configuration",
+          "setup/styling-customization"
+        ]
+      },
+      {
+        "group": "User Guide",
+        "pages": [
+          "guide/managing-tasks",
+          "guide/task-locking",
+          "guide/troubleshooting"
+        ]
+      },
+      {
+        "group": "Database",
+        "pages": [
+          "database/overview",
+          "database/sqlite",
+          "database/mariadb",
+          "database/postgresql"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/routes",
+          "api/models",
+          "api/configuration"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-database support (SQLite, MariaDB, PostgreSQL)",
+    "Task management with add, complete, and delete operations",
+    "Task locking to prevent accidental deletion",
+    "Customizable UI styling via YAML configuration",
+    "Simple Flask-based web interface"
+  ],
+  "publicApiSurface": [
+    "GET /",
+    "POST /add",
+    "GET /toggle/<task_id>",
+    "GET /delete/<task_id>",
+    "Task model (id, name, completed, locked)",
+    "config.yaml configuration",
+    "db-config.yaml database configuration"
+  ]
+}
