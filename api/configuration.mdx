@@ -1,0 +1,462 @@
+---
+title: 'Configuration'
+description: 'Configuration file reference and database setup'
+---
+
+## Overview
+
+The Flask ToDo App uses two YAML configuration files:
+- `config.yaml` - Main application configuration
+- `db-config.yaml` - Database connection settings
+
+Configuration is loaded via `config.py:5` using the `load_app_config()` function.
+
+## config.yaml
+
+The main application configuration file that defines database config path, styling options, and Flask server settings.
+
+### Schema
+
+<ParamField path="database_config_path" type="string" required>
+  Absolute path to the database configuration file (`db-config.yaml`)
+  
+  **Example:** `/full/path/to/db-config.yaml`
+</ParamField>
+
+<ParamField path="style" type="object">
+  Custom styling configuration for the web interface (optional)
+  
+  <Expandable title="Style Properties">
+    <ParamField path="style.background_color" type="string">
+      Background color of the page (hex color code)
+      
+      **Example:** `#1a1a1a`
+    </ParamField>
+    
+    <ParamField path="style.text_color" type="string">
+      Primary text color (hex color code)
+      
+      **Example:** `#2a750f`
+    </ParamField>
+    
+    <ParamField path="style.button_color" type="string">
+      Button background color (hex color code)
+      
+      **Example:** `#4cc121`
+    </ParamField>
+    
+    <ParamField path="style.button_text_color" type="string">
+      Button text color (hex color code)
+      
+      **Example:** `#ffffff`
+    </ParamField>
+    
+    <ParamField path="style.completed_text_color" type="string">
+      Text color for completed tasks (hex color code)
+      
+      **Example:** `#6c757d`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="flask" type="object">
+  Flask server configuration settings
+  
+  <Expandable title="Flask Properties">
+    <ParamField path="flask.port" type="integer" default="8080">
+      Port number for the Flask development server
+      
+      **Example:** `8080`
+    </ParamField>
+    
+    <ParamField path="flask.debug" type="boolean" default="false">
+      Enable Flask debug mode (auto-reload, detailed errors)
+      
+      **Values:** `true` or `false`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example Configuration
+
+<CodeGroup>
+```yaml Default config.yaml
+database_config_path: "/full/path/to/db-config.yaml"
+
+# Uncomment to apply custom style
+# style:
+#   background_color: "#1a1a1a"
+#   text_color: "#2a750f"
+#   button_color: "#4cc121"
+#   button_text_color: "#ffffff"
+#   completed_text_color: "#6c757d"
+
+flask:
+  port: 8080
+  debug: false
+```
+
+```yaml Custom Styling config.yaml
+database_config_path: "/home/user/app/db-config.yaml"
+
+style:
+  background_color: "#f5f5f5"
+  text_color: "#333333"
+  button_color: "#007bff"
+  button_text_color: "#ffffff"
+  completed_text_color: "#999999"
+
+flask:
+  port: 5000
+  debug: true
+```
+
+```yaml Production config.yaml
+database_config_path: "/etc/todo-app/db-config.yaml"
+
+flask:
+  port: 8080
+  debug: false
+```
+</CodeGroup>
+
+---
+
+## db-config.yaml
+
+Database connection configuration supporting SQLite, MariaDB, and PostgreSQL.
+
+**Implementation:** Database URI construction handled by `db_utils.py:3`
+
+### Schema
+
+<ParamField path="engine" type="string" required>
+  Database engine type
+  
+  **Allowed values:** `sqlite`, `mariadb`, `postgresql`
+</ParamField>
+
+<ParamField path="sqlite" type="object">
+  SQLite database configuration (used when `engine: sqlite`)
+  
+  <Expandable title="SQLite Properties">
+    <ParamField path="sqlite.database" type="string" required>
+      Absolute path to SQLite database file
+      
+      **Example:** `/full/path/to/todo.db`
+      
+      **Generated URI:** `sqlite:///[database]`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="mariadb" type="object">
+  MariaDB database configuration (used when `engine: mariadb`)
+  
+  <Expandable title="MariaDB Properties">
+    <ParamField path="mariadb.user" type="string" required>
+      Database username
+      
+      **Example:** `root`
+    </ParamField>
+    
+    <ParamField path="mariadb.password" type="string" required>
+      Database password
+      
+      **Example:** `mariadbpass`
+    </ParamField>
+    
+    <ParamField path="mariadb.host" type="string" required>
+      Database host address
+      
+      **Example:** `localhost`
+    </ParamField>
+    
+    <ParamField path="mariadb.port" type="integer" required>
+      Database port number
+      
+      **Example:** `3306`
+    </ParamField>
+    
+    <ParamField path="mariadb.database" type="string" required>
+      Database name
+      
+      **Example:** `todo_db`
+      
+      **Generated URI:** `mysql+pymysql://[user]:[password]@[host]:[port]/[database]`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="postgresql" type="object">
+  PostgreSQL database configuration (used when `engine: postgresql`)
+  
+  <Expandable title="PostgreSQL Properties">
+    <ParamField path="postgresql.user" type="string" required>
+      Database username
+      
+      **Example:** `postgres`
+    </ParamField>
+    
+    <ParamField path="postgresql.password" type="string" required>
+      Database password
+      
+      **Example:** `pgpass`
+    </ParamField>
+    
+    <ParamField path="postgresql.host" type="string" required>
+      Database host address
+      
+      **Example:** `localhost`
+    </ParamField>
+    
+    <ParamField path="postgresql.port" type="integer" required>
+      Database port number
+      
+      **Example:** `5432`
+    </ParamField>
+    
+    <ParamField path="postgresql.database" type="string" required>
+      Database name
+      
+      **Example:** `todo_db`
+      
+      **Generated URI:** `postgresql+psycopg2://[user]:[password]@[host]:[port]/[database]`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example Configurations
+
+<CodeGroup>
+```yaml SQLite db-config.yaml
+engine: sqlite
+
+sqlite:
+  database: /full/path/to/todo.db
+
+mariadb:
+  user: root
+  password: mariadbpass
+  host: localhost
+  port: 3306
+  database: todo_db
+
+postgresql:
+  user: postgres
+  password: pgpass
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+
+```yaml MariaDB db-config.yaml
+engine: mariadb
+
+sqlite:
+  database: /full/path/to/todo.db
+
+mariadb:
+  user: admin
+  password: secure_password_123
+  host: db.example.com
+  port: 3306
+  database: production_todo
+
+postgresql:
+  user: postgres
+  password: pgpass
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+
+```yaml PostgreSQL db-config.yaml
+engine: postgresql
+
+sqlite:
+  database: /full/path/to/todo.db
+
+mariadb:
+  user: root
+  password: mariadbpass
+  host: localhost
+  port: 3306
+  database: todo_db
+
+postgresql:
+  user: todo_user
+  password: postgres_pass_456
+  host: postgres.internal
+  port: 5432
+  database: flask_todo_app
+```
+</CodeGroup>
+
+## Configuration Loading
+
+The `load_app_config()` function in `config.py` handles the configuration loading process:
+
+```python config.py
+def load_app_config():
+    with open("config.yaml", "r") as f:
+        cfg = yaml.safe_load(f)
+
+    db_config_path = cfg["database_config_path"]
+
+    if not os.path.isfile(db_config_path):
+        raise FileNotFoundError(f"Database config file not found: {db_config_path}")
+
+    with open(db_config_path, "r") as f:
+        db_cfg = yaml.safe_load(f)
+
+    db_uri = construct_db_uri(db_cfg)
+    return {
+        "SQLALCHEMY_DATABASE_URI": db_uri,
+        "style": cfg.get("style", {}),
+        "flask": cfg.get("flask", {"port": 8080, "debug": False})
+    }
+```
+
+### Loading Process
+
+<Steps>
+  <Step title="Load config.yaml">
+    Reads and parses the main configuration file using `yaml.safe_load()`
+  </Step>
+  
+  <Step title="Validate Database Config Path">
+    Checks that the `database_config_path` points to an existing file, raises `FileNotFoundError` if missing
+  </Step>
+  
+  <Step title="Load db-config.yaml">
+    Reads and parses the database configuration file
+  </Step>
+  
+  <Step title="Construct Database URI">
+    Calls `construct_db_uri()` from `db_utils.py` to build the SQLAlchemy connection string
+  </Step>
+  
+  <Step title="Return Configuration Dictionary">
+    Returns a dictionary with SQLAlchemy URI, style settings, and Flask settings
+  </Step>
+</Steps>
+
+## Database URI Construction
+
+The `construct_db_uri()` function in `db_utils.py` builds database connection strings:
+
+```python db_utils.py
+def construct_db_uri(cfg):
+    global engine_type
+    engine_type = cfg.get("engine")
+    engine = engine_type
+
+    if engine == "sqlite":
+        sqlite_cfg = cfg["sqlite"]
+        return f"sqlite:///{sqlite_cfg['database']}"
+
+    elif engine == "mariadb":
+        mdb = cfg["mariadb"]
+        return f"mysql+pymysql://{mdb['user']}:{mdb['password']}@{mdb['host']}:{mdb['port']}/{mdb['database']}"
+
+    elif engine == "postgresql":
+        pg = cfg["postgresql"]
+        return f"postgresql+psycopg2://{pg['user']}:{pg['password']}@{pg['host']}:{pg['port']}/{pg['database']}"
+
+    else:
+        raise ValueError(f"Unsupported engine: {engine}")
+```
+
+### Generated URIs
+
+<CardGroup cols={3}>
+  <Card title="SQLite" icon="database">
+    ```
+    sqlite:///[database]
+    ```
+    
+    Example:
+    ```
+    sqlite:////var/todo.db
+    ```
+  </Card>
+  
+  <Card title="MariaDB" icon="database">
+    ```
+    mysql+pymysql://
+    [user]:[password]@
+    [host]:[port]/
+    [database]
+    ```
+  </Card>
+  
+  <Card title="PostgreSQL" icon="database">
+    ```
+    postgresql+psycopg2://
+    [user]:[password]@
+    [host]:[port]/
+    [database]
+    ```
+  </Card>
+</CardGroup>
+
+## Configuration Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Absolute Paths">
+    Always use absolute paths for file references:
+    
+    ```yaml
+    # Good
+    database_config_path: "/home/user/app/db-config.yaml"
+    sqlite:
+      database: /var/lib/todo/todo.db
+    
+    # Bad
+    database_config_path: "./db-config.yaml"
+    sqlite:
+      database: todo.db
+    ```
+  </Accordion>
+  
+  <Accordion title="Secure Sensitive Data">
+    Never commit passwords or sensitive data to version control:
+    
+    - Add `db-config.yaml` to `.gitignore`
+    - Use environment variables for production passwords
+    - Consider using secrets management tools
+  </Accordion>
+  
+  <Accordion title="Configure All Database Sections">
+    Even if you're only using one database engine, configure all sections in `db-config.yaml`:
+    
+    - Makes switching databases easier
+    - Provides clear documentation of options
+    - Follows the template structure
+  </Accordion>
+  
+  <Accordion title="Production vs Development">
+    Use different configurations for different environments:
+    
+    ```yaml Development
+    flask:
+      port: 5000
+      debug: true  # Enable debug mode
+    ```
+    
+    ```yaml Production
+    flask:
+      port: 8080
+      debug: false  # Disable debug mode
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  The `engine` field in `db-config.yaml` must match one of the supported values: `sqlite`, `mariadb`, or `postgresql`. Any other value will raise a `ValueError`.
+</Warning>
+
+<Note>
+  The style configuration is entirely optional. If omitted, the application will use default styling defined in the HTML templates.
+</Note>

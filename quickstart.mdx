@@ -1,80 +1,342 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get the Flask ToDo App running in minutes with this step-by-step guide
 ---
 
-## Get started in three steps
+## Get Started in 5 Minutes
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide will take you from zero to a running Flask ToDo App using SQLite (the simplest setup).
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  This quick start uses **SQLite** for simplicity. To use MariaDB or PostgreSQL, see the [Database Overview](/database/overview) guide.
+</Note>
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Python 3.9+" icon="python">
+    Verify with `python3 --version`
+  </Card>
+  <Card title="pip" icon="box">
+    Python package installer
+  </Card>
+</CardGroup>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Get the source code from GitHub:
+
+    ```bash
+    git clone https://github.com/maudel28/todo.git
+    cd todo/
+    ```
+
+    You should see the following structure:
+    ```
+    todo/
+    ├── app/
+    │   ├── __init__.py
+    │   ├── models.py
+    │   ├── routes.py
+    │   ├── config.py
+    │   └── templates/
+    ├── scripts/
+    ├── run.py
+    ├── requirements.txt
+    └── config.yaml
+    ```
+  </Step>
+
+  <Step title="Create Virtual Environment">
+    Set up an isolated Python environment:
+
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+    Your terminal prompt should now show `(venv)` indicating the virtual environment is active.
+
+    <Note>
+      On Windows, use `venv\Scripts\activate` instead.
+    </Note>
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required packages:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    This installs:
+    ```txt requirements.txt
+    Flask
+    Flask-SQLAlchemy
+    SQLAlchemy
+    PyYAML
+    PyMySQL
+    psycopg2-binary
+    ```
+
+    <Note>
+      The requirements include drivers for all database engines. For SQLite-only usage, only `Flask`, `Flask-SQLAlchemy`, `SQLAlchemy`, and `PyYAML` are needed.
+    </Note>
+  </Step>
+
+  <Step title="Configure the Application">
+    Create your configuration files. First, create `config.yaml`:
+
+    ```yaml config.yaml
+    database_config_path: "/home/youruser/todo/db-config.yaml"
+
+    flask:
+      port: 8080
+      debug: false
+    ```
+
+    <Warning>
+      Update the `database_config_path` to the **absolute path** of your `db-config.yaml` file.
+    </Warning>
+
+    Then create `db-config.yaml` for SQLite:
+
+    ```yaml db-config.yaml
+    engine: sqlite
+
+    sqlite:
+      database: /home/youruser/todo/todo.db
+
+    mariadb:
+      user: root
+      password: mariadbpass
+      host: localhost
+      port: 3306
+      database: todo_db
+
+    postgresql:
+      user: postgres
+      password: pgpass
+      host: localhost
+      port: 5432
+      database: todo_db
+    ```
+
+    <Note>
+      All database sections must be present in `db-config.yaml`, but only the `engine` value determines which one is used.
+    </Note>
+  </Step>
+
+  <Step title="Initialize the Database">
+    Run the SQLite initialization script:
+
+    ```bash
+    chmod +x scripts/init_db_sqlite.sh
+    ./scripts/init_db_sqlite.sh
+    ```
+
+    Expected output:
+    ```
+    Creating SQLite database at /home/youruser/todo/todo.db ...
+    SQLite database initialized.
+    ```
+
+    This creates the `task` table:
+    ```sql
+    CREATE TABLE IF NOT EXISTS task (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        completed BOOLEAN DEFAULT 0,
+        locked BOOLEAN DEFAULT 0
+    );
+    ```
+  </Step>
+
+  <Step title="Run the Application">
+    Start the Flask development server:
+
+    ```bash
+    python run.py
+    ```
+
+    You should see:
+    ```
+     * Serving Flask app 'app'
+     * Debug mode: off
+    WARNING: This is a development server. Do not use it in a production deployment.
+     * Running on all addresses (0.0.0.0)
+     * Running on http://127.0.0.1:8080
+     * Running on http://192.168.1.100:8080
+    Press CTRL+C to quit
+    ```
+  </Step>
+
+  <Step title="Open in Browser">
+    Visit `http://localhost:8080` in your web browser.
+
+    You'll see the ToDo App interface where you can:
+    - Add new tasks using the input form
+    - Toggle task completion by clicking the checkbox
+    - Delete tasks using the delete button
+    - See the database engine displayed in the footer
+  </Step>
+</Steps>
+
+## Understanding the Core Components
+
+<CodeGroup>
+
+```python run.py
+from app import create_app
+from app.config import load_app_config
+
+app = create_app()
+config = load_app_config()
+
+if __name__ == "__main__":
+    app.run(
+        host="0.0.0.0",
+        port=config["flask"].get("port", 8080),
+        debug=config["flask"].get("debug", False)
+    )
+```
+
+```python app/models.py
+from . import db
+
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+```python app/routes.py
+from flask import render_template, request, redirect, url_for
+from . import db
+from .models import Task
+from flask import current_app as app
+
+@app.route("/")
+def index():
+    tasks = Task.query.all()
+    pending = [t for t in tasks if not t.completed]
+    completed = [t for t in tasks if t.completed]
+    style = app.config.get("style", {})
+    return render_template("index.html", pending=pending, completed=completed, style=style)
+
+@app.route("/add", methods=["POST"])
+def add():
+    name = request.form.get("task_name")
+    if name:
+        task = Task(name=name)
+        db.session.add(task)
+        db.session.commit()
+    return redirect(url_for("index"))
+
+@app.route("/toggle/<int:task_id>")
+def toggle(task_id):
+    task = Task.query.get(task_id)
+    if task:
+        task.completed = not task.completed
+        db.session.commit()
+    return redirect(url_for("index"))
+
+@app.route("/delete/<int:task_id>")
+def delete(task_id):
+    task = Task.query.get(task_id)
+    if task and not task.locked:
+        db.session.delete(task)
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+```python app/db_utils.py
+engine_type = None
+
+def construct_db_uri(cfg):
+    global engine_type
+    engine_type = cfg.get("engine")
+    engine = engine_type
+
+    if engine == "sqlite":
+        sqlite_cfg = cfg["sqlite"]
+        return f"sqlite:///{sqlite_cfg['database']}"
+
+    elif engine == "mariadb":
+        mdb = cfg["mariadb"]
+        return f"mysql+pymysql://{mdb['user']}:{mdb['password']}@{mdb['host']}:{mdb['port']}/{mdb['database']}"
+
+    elif engine == "postgresql":
+        pg = cfg["postgresql"]
+        return f"postgresql+psycopg2://{pg['user']}:{pg['password']}@{pg['host']}:{pg['port']}/{pg['database']}"
+
+    else:
+        raise ValueError(f"Unsupported engine: {engine}")
+
+def get_engine_type():
+    return engine_type
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Customize Styling" icon="palette" href="/setup/styling-customization">
+    Learn how to customize colors and themes using the `style` configuration
+  </Card>
+  <Card title="Switch Database" icon="database" href="/database/overview">
+    Set up MariaDB or PostgreSQL instead of SQLite
+  </Card>
+  <Card title="Explore Routes" icon="route" href="/api/routes">
+    Understand all available routes and how they work
+  </Card>
+  <Card title="Task Locking" icon="lock" href="/guide/task-locking">
+    Learn about protecting tasks from deletion
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="ImportError: No module named 'flask'">
+    Make sure you've activated the virtual environment:
+    ```bash
+    source venv/bin/activate
+    ```
+    Then reinstall dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+  </Accordion>
+
+  <Accordion title="FileNotFoundError: Database config file not found">
+    Verify that:
+    1. Your `db-config.yaml` file exists
+    2. The path in `config.yaml` is an **absolute path** (not relative)
+    3. You've updated `/full/path/to/db-config.yaml` with your actual path
+  </Accordion>
+
+  <Accordion title="Database file not found or cannot be opened">
+    Make sure:
+    1. You ran the initialization script: `./scripts/init_db_sqlite.sh`
+    2. The database path in `db-config.yaml` is an absolute path
+    3. You have write permissions in the directory
+  </Accordion>
+
+  <Accordion title="Port 8080 already in use">
+    Either kill the process using port 8080, or change the port in `config.yaml`:
+    ```yaml
+    flask:
+      port: 8081
+      debug: false
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  For production deployment, use a production WSGI server like **Gunicorn** or **uWSGI** instead of Flask's development server.
 </Note>

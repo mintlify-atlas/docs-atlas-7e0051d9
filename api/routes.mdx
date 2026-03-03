@@ -1,0 +1,211 @@
+---
+title: 'Routes'
+description: 'Flask route endpoints and API documentation'
+---
+
+## Overview
+
+The Flask ToDo App provides four main routes for managing tasks. All routes redirect to the index page after completion, providing a seamless user experience.
+
+## Routes
+
+### GET /
+
+Displays the main task list page with pending and completed tasks.
+
+<ParamField path="/" type="GET">
+  Index route that renders the main application interface
+</ParamField>
+
+**Implementation:** `routes.py:6`
+
+#### Behavior
+
+1. Queries all tasks from the database using `Task.query.all()`
+2. Separates tasks into pending and completed lists
+3. Retrieves style configuration from Flask app config
+4. Renders `index.html` template with task lists and styling
+
+#### Response
+
+Returns HTML page with:
+- List of pending tasks (not completed)
+- List of completed tasks
+- Custom styling from configuration
+
+```python routes.py
+@app.route("/")
+def index():
+    tasks = Task.query.all()
+    pending = [t for t in tasks if not t.completed]
+    completed = [t for t in tasks if t.completed]
+    style = app.config.get("style", {})
+    return render_template("index.html", pending=pending, completed=completed, style=style)
+```
+
+---
+
+### POST /add
+
+Creates a new task and adds it to the database.
+
+<ParamField path="/add" type="POST">
+  Adds a new task to the todo list
+</ParamField>
+
+**Implementation:** `routes.py:15`
+
+#### Parameters
+
+<ParamField body="task_name" type="string" required>
+  The name/description of the task to create. Submitted via HTML form data.
+</ParamField>
+
+#### Behavior
+
+1. Extracts `task_name` from POST request form data
+2. Validates that name is not empty
+3. Creates new `Task` instance with the provided name
+4. Adds task to database session and commits
+5. Redirects to index page
+
+#### Response
+
+<ResponseField name="redirect" type="302">
+  Redirects to `/` (index page) after task creation
+</ResponseField>
+
+```python routes.py
+@app.route("/add", methods=["POST"])
+def add():
+    name = request.form.get("task_name")
+    if name:
+        task = Task(name=name)
+        db.session.add(task)
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+<Note>
+  If `task_name` is empty or not provided, the route will silently skip task creation and still redirect to the index page.
+</Note>
+
+---
+
+### GET /toggle/\<task_id\>
+
+Toggles the completion status of a task.
+
+<ParamField path="/toggle/<task_id>" type="GET">
+  Toggles task between completed and pending states
+</ParamField>
+
+**Implementation:** `routes.py:24`
+
+#### Parameters
+
+<ParamField path="task_id" type="integer" required>
+  The unique identifier of the task to toggle. Must be a valid integer corresponding to an existing task.
+</ParamField>
+
+#### Behavior
+
+1. Queries database for task with specified `task_id`
+2. If task exists, toggles the `completed` boolean field
+3. Commits the change to database
+4. Redirects to index page
+
+#### Response
+
+<ResponseField name="redirect" type="302">
+  Redirects to `/` (index page) after toggling task status
+</ResponseField>
+
+```python routes.py
+@app.route("/toggle/<int:task_id>")
+def toggle(task_id):
+    task = Task.query.get(task_id)
+    if task:
+        task.completed = not task.completed
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+<Note>
+  If the task ID doesn't exist, the route will silently skip the toggle operation and still redirect to the index page.
+</Note>
+
+---
+
+### GET /delete/\<task_id\>
+
+Deletes a task from the database if it is not locked.
+
+<ParamField path="/delete/<task_id>" type="GET">
+  Permanently removes a task from the database
+</ParamField>
+
+**Implementation:** `routes.py:32`
+
+#### Parameters
+
+<ParamField path="task_id" type="integer" required>
+  The unique identifier of the task to delete. Must be a valid integer corresponding to an existing task.
+</ParamField>
+
+#### Behavior
+
+1. Queries database for task with specified `task_id`
+2. Checks if task exists AND is not locked
+3. If both conditions are met, deletes task from database
+4. Commits the deletion
+5. Redirects to index page
+
+#### Response
+
+<ResponseField name="redirect" type="302">
+  Redirects to `/` (index page) after deleting the task
+</ResponseField>
+
+```python routes.py
+@app.route("/delete/<int:task_id>")
+def delete(task_id):
+    task = Task.query.get(task_id)
+    if task and not task.locked:
+        db.session.delete(task)
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+<Warning>
+  Tasks with `locked=True` cannot be deleted. The route will silently skip deletion for locked tasks and redirect to the index page.
+</Warning>
+
+## Common Patterns
+
+### Redirect Flow
+
+All routes follow a consistent redirect pattern:
+
+<Steps>
+  <Step title="Process Request">
+    Route handler processes the incoming request (query, create, update, or delete)
+  </Step>
+  <Step title="Database Operation">
+    Perform database operation with appropriate validation
+  </Step>
+  <Step title="Redirect">
+    Return redirect to index page using `redirect(url_for("index"))`
+  </Step>
+</Steps>
+
+### Error Handling
+
+The application uses graceful degradation:
+- Invalid task IDs: Operations are skipped, redirect proceeds
+- Empty task names: Task creation is skipped
+- Locked tasks: Deletion is prevented
+
+<Info>
+  No explicit error messages are returned to the user. The application silently handles edge cases and continues operation.
+</Info>

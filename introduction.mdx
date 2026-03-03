@@ -1,0 +1,157 @@
+---
+title: Flask ToDo App
+description: A minimalist ToDo web application built with Flask, SQLAlchemy, and support for multiple database engines
+---
+
+## Welcome to Flask ToDo App
+
+A clean, minimalist ToDo application built with **Flask** and **SQLAlchemy**. Choose your preferred database engine (SQLite, MariaDB, or PostgreSQL) and customize the UI to match your style.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get the app running in minutes with our step-by-step guide
+  </Card>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/setup/database-configuration"
+  >
+    Configure your database engine and customize the UI styling
+  </Card>
+  <Card
+    title="Database Setup"
+    icon="database"
+    href="/database/overview"
+  >
+    Learn how to set up SQLite, MariaDB, or PostgreSQL
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/routes"
+  >
+    Explore the application's routes and data models
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={3}>
+  <Card title="Multiple Databases" icon="database">
+    Built-in support for SQLite, MariaDB 10+, and PostgreSQL 12+
+  </Card>
+  <Card title="Task Management" icon="list-check">
+    Add, complete, and delete tasks with an intuitive interface
+  </Card>
+  <Card title="Customizable UI" icon="palette">
+    Style the app with YAML-based configuration for colors and themes
+  </Card>
+  <Card title="Task Locking" icon="lock">
+    Protect important tasks from accidental deletion
+  </Card>
+  <Card title="Flask & SQLAlchemy" icon="flask">
+    Modern Python web framework with powerful ORM
+  </Card>
+  <Card title="Lightweight" icon="feather">
+    Minimal dependencies, clean codebase, easy to understand
+  </Card>
+</CardGroup>
+
+## Application Architecture
+
+The Flask ToDo App follows a clean, modular structure:
+
+```python app/__init__.py
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from .config import load_app_config
+from .db_utils import get_engine_type
+
+db = SQLAlchemy()
+
+def create_app():
+    app = Flask(__name__)
+    
+    config = load_app_config()
+    app.config['SQLALCHEMY_DATABASE_URI'] = config['SQLALCHEMY_DATABASE_URI']
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['style'] = config.get('style', {})
+
+    @app.context_processor
+    def inject_engine():
+        return dict(engine=get_engine_type())
+    
+    db.init_app(app)
+
+    with app.app_context():
+        from . import routes
+        from .models import Task
+        db.create_all()
+
+    return app
+```
+
+<Note>
+  The application uses the **factory pattern** with `create_app()`, making it easy to test and deploy in different environments.
+</Note>
+
+## Simple Data Model
+
+At the core is a straightforward Task model:
+
+```python app/models.py
+from . import db
+
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+<CardGroup cols={2}>
+  <Card title="id" icon="hashtag">
+    Auto-incrementing primary key
+  </Card>
+  <Card title="name" icon="text">
+    Task description (required)
+  </Card>
+  <Card title="completed" icon="check">
+    Task completion status
+  </Card>
+  <Card title="locked" icon="lock">
+    Prevents deletion when true
+  </Card>
+</CardGroup>
+
+## Requirements
+
+<CardGroup cols={3}>
+  <Card title="Python 3.9+" icon="python">
+    Modern Python version required
+  </Card>
+  <Card title="Virtual Environment" icon="box">
+    Recommended for dependency isolation
+  </Card>
+  <Card title="Database Engine" icon="database">
+    Choose SQLite, MariaDB 10+, or PostgreSQL 12+
+  </Card>
+</CardGroup>
+
+## What's Next?
+
+<Steps>
+  <Step title="Quick Start">
+    Follow the [Quick Start Guide](/quickstart) to get your app running in minutes
+  </Step>
+  <Step title="Configure">
+    Set up your [database configuration](/database/overview) and customize the UI
+  </Step>
+  <Step title="Explore">
+    Learn about the [API routes](/api/routes) and extend the functionality
+  </Step>
+</Steps>

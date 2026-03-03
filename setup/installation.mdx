@@ -1,0 +1,168 @@
+---
+title: 'Installation'
+description: 'Install and set up the Flask ToDo App with virtual environment'
+icon: 'download'
+---
+
+## Prerequisites
+
+Before installing the Flask ToDo App, ensure you have the following installed:
+
+- Python 3.7 or higher
+- pip (Python package manager)
+- Virtual environment tool (venv)
+
+<Note>
+It's recommended to use a virtual environment to avoid conflicts with other Python projects on your system.
+</Note>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    First, clone the repository or download the source code:
+    
+    ```bash
+    git clone <repository-url>
+    cd flask-todo-app
+    ```
+  </Step>
+
+  <Step title="Create Virtual Environment">
+    Create a Python virtual environment to isolate project dependencies:
+    
+    ```bash
+    python -m venv venv
+    ```
+    
+    <Note>
+    On some systems, you may need to use `python3` instead of `python`.
+    </Note>
+  </Step>
+
+  <Step title="Activate Virtual Environment">
+    Activate the virtual environment based on your operating system:
+    
+    <Tabs>
+      <Tab title="Linux/macOS">
+        ```bash
+        source venv/bin/activate
+        ```
+      </Tab>
+      
+      <Tab title="Windows (CMD)">
+        ```cmd
+        venv\Scripts\activate.bat
+        ```
+      </Tab>
+      
+      <Tab title="Windows (PowerShell)">
+        ```powershell
+        venv\Scripts\Activate.ps1
+        ```
+      </Tab>
+    </Tabs>
+    
+    Once activated, you should see `(venv)` prefix in your terminal prompt.
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required Python packages using pip:
+    
+    ```bash
+    pip install -r requirements.txt
+    ```
+    
+    This will install the following dependencies:
+    
+    ```txt requirements.txt
+    Flask
+    Flask-SQLAlchemy
+    SQLAlchemy
+    PyYAML
+    PyMySQL
+    psycopg2-binary
+    ```
+    
+    <Info>
+    **Package Overview:**
+    - `Flask` - The web framework
+    - `Flask-SQLAlchemy` & `SQLAlchemy` - Database ORM
+    - `PyYAML` - Configuration file parsing
+    - `PyMySQL` - MariaDB/MySQL driver
+    - `psycopg2-binary` - PostgreSQL driver
+    </Info>
+  </Step>
+
+  <Step title="Configure the Application">
+    Before running the app, you need to configure:
+    
+    1. Database settings in `db-config.yaml`
+    2. Application settings in `config.yaml`
+    
+    See the [Database Configuration](/setup/database-configuration) and [Styling Customization](/setup/styling-customization) pages for detailed instructions.
+  </Step>
+
+  <Step title="Initialize the Database">
+    The application will automatically create database tables on first run. The database initialization happens in `app/__init__.py:23-26`:
+    
+    ```python
+    with app.app_context():
+        from . import routes
+        from .models import Task
+        db.create_all()
+    ```
+  </Step>
+
+  <Step title="Run the Application">
+    Start the Flask development server:
+    
+    ```bash
+    python run.py
+    ```
+    
+    The application will start on the configured port (default: 8080). You should see output like:
+    
+    ```
+    * Running on http://0.0.0.0:8080
+    ```
+  </Step>
+</Steps>
+
+## Verify Installation
+
+Once the application is running, open your web browser and navigate to:
+
+```
+http://localhost:8080
+```
+
+You should see the ToDo App interface.
+
+<Warning>
+If you encounter any errors during installation, ensure that:
+- Your Python version is 3.7 or higher
+- All configuration files are properly set up
+- Database connection details are correct
+- The virtual environment is activated
+</Warning>
+
+## Deactivating Virtual Environment
+
+When you're done working on the project, you can deactivate the virtual environment:
+
+```bash
+deactivate
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Configuration" icon="database" href="/setup/database-configuration">
+    Configure SQLite, MariaDB, or PostgreSQL
+  </Card>
+  
+  <Card title="Styling Customization" icon="palette" href="/setup/styling-customization">
+    Customize the UI appearance
+  </Card>
+</CardGroup>

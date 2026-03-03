@@ -1,0 +1,413 @@
+---
+title: 'Database Configuration'
+description: 'Configure SQLite, MariaDB, or PostgreSQL for your Flask ToDo App'
+icon: 'database'
+---
+
+## Overview
+
+The Flask ToDo App supports three database engines:
+
+- **SQLite** - Lightweight, file-based database (recommended for development)
+- **MariaDB** - MySQL-compatible relational database
+- **PostgreSQL** - Advanced open-source relational database
+
+<Info>
+The application uses SQLAlchemy ORM, which automatically handles database-specific SQL generation. You can switch between databases without changing application code.
+</Info>
+
+## Configuration Files
+
+Database configuration requires two files:
+
+1. `db-config.yaml` - Contains database connection details
+2. `config.yaml` - References the database config file path
+
+### Main Configuration (config.yaml)
+
+First, specify the path to your database configuration file:
+
+```yaml config.yaml
+database_config_path: "/full/path/to/db-config.yaml"
+
+flask:
+  port: 8080
+  debug: false
+```
+
+<Warning>
+Use an absolute path for `database_config_path`. Relative paths may cause issues depending on where you run the application.
+</Warning>
+
+## Database Setup
+
+Choose your preferred database engine and follow the corresponding setup instructions:
+
+<Tabs>
+  <Tab title="SQLite">
+    SQLite is the simplest option and requires no separate database server.
+    
+    ### Configuration
+    
+    Edit `db-config.yaml`:
+    
+    ```yaml db-config.yaml
+    engine: sqlite
+    
+    sqlite:
+      database: /full/path/to/todo.db
+    ```
+    
+    ### Setup Steps
+    
+    <Steps>
+      <Step title="Set Engine to SQLite">
+        Set `engine: sqlite` in `db-config.yaml`
+      </Step>
+      
+      <Step title="Specify Database Path">
+        Provide the full path where the SQLite database file will be created:
+        
+        ```yaml
+        sqlite:
+          database: /home/user/todo-app/todo.db
+        ```
+        
+        <Note>
+        The file will be created automatically if it doesn't exist. Ensure the directory has write permissions.
+        </Note>
+      </Step>
+    </Steps>
+    
+    ### Database URI Construction
+    
+    The application constructs the SQLite URI in `app/db_utils.py:9-11`:
+    
+    ```python
+    if engine == "sqlite":
+        sqlite_cfg = cfg["sqlite"]
+        return f"sqlite:///{sqlite_cfg['database']}"
+    ```
+    
+    <Info>
+    SQLite is ideal for:
+    - Development and testing
+    - Small to medium deployments
+    - Single-user applications
+    - No additional setup required
+    </Info>
+  </Tab>
+  
+  <Tab title="MariaDB">
+    MariaDB is a MySQL-compatible database that offers better performance for production environments.
+    
+    ### Prerequisites
+    
+    - MariaDB server installed and running
+    - PyMySQL driver (installed via requirements.txt)
+    - Database and user credentials
+    
+    ### Configuration
+    
+    Edit `db-config.yaml`:
+    
+    ```yaml db-config.yaml
+    engine: mariadb
+    
+    mariadb:
+      user: root
+      password: mariadbpass
+      host: localhost
+      port: 3306
+      database: todo_db
+    ```
+    
+    ### Setup Steps
+    
+    <Steps>
+      <Step title="Install MariaDB Server">
+        Install MariaDB on your system:
+        
+        ```bash Ubuntu/Debian
+        sudo apt-get update
+        sudo apt-get install mariadb-server
+        ```
+        
+        ```bash macOS (Homebrew)
+        brew install mariadb
+        ```
+      </Step>
+      
+      <Step title="Create Database">
+        Log into MariaDB and create the database:
+        
+        ```sql
+        mysql -u root -p
+        CREATE DATABASE todo_db;
+        ```
+      </Step>
+      
+      <Step title="Configure Connection">
+        Update `db-config.yaml` with your MariaDB credentials:
+        
+        ```yaml
+        engine: mariadb
+        
+        mariadb:
+          user: your_username
+          password: your_password
+          host: localhost
+          port: 3306
+          database: todo_db
+        ```
+      </Step>
+    </Steps>
+    
+    ### Database URI Construction
+    
+    The application constructs the MariaDB URI in `app/db_utils.py:13-15`:
+    
+    ```python
+    elif engine == "mariadb":
+        mdb = cfg["mariadb"]
+        return f"mysql+pymysql://{mdb['user']}:{mdb['password']}@{mdb['host']}:{mdb['port']}/{mdb['database']}"
+    ```
+    
+    <Warning>
+    Store sensitive credentials securely. Consider using environment variables for production deployments.
+    </Warning>
+  </Tab>
+  
+  <Tab title="PostgreSQL">
+    PostgreSQL is a powerful, enterprise-grade database with advanced features.
+    
+    ### Prerequisites
+    
+    - PostgreSQL server installed and running
+    - psycopg2-binary driver (installed via requirements.txt)
+    - Database and user credentials
+    
+    ### Configuration
+    
+    Edit `db-config.yaml`:
+    
+    ```yaml db-config.yaml
+    engine: postgresql
+    
+    postgresql:
+      user: postgres
+      password: pgpass
+      host: localhost
+      port: 5432
+      database: todo_db
+    ```
+    
+    ### Setup Steps
+    
+    <Steps>
+      <Step title="Install PostgreSQL Server">
+        Install PostgreSQL on your system:
+        
+        ```bash Ubuntu/Debian
+        sudo apt-get update
+        sudo apt-get install postgresql postgresql-contrib
+        ```
+        
+        ```bash macOS (Homebrew)
+        brew install postgresql
+        ```
+      </Step>
+      
+      <Step title="Create Database">
+        Switch to the postgres user and create the database:
+        
+        ```bash
+        sudo -u postgres psql
+        CREATE DATABASE todo_db;
+        ```
+      </Step>
+      
+      <Step title="Configure Connection">
+        Update `db-config.yaml` with your PostgreSQL credentials:
+        
+        ```yaml
+        engine: postgresql
+        
+        postgresql:
+          user: postgres
+          password: your_password
+          host: localhost
+          port: 5432
+          database: todo_db
+        ```
+      </Step>
+    </Steps>
+    
+    ### Database URI Construction
+    
+    The application constructs the PostgreSQL URI in `app/db_utils.py:17-19`:
+    
+    ```python
+    elif engine == "postgresql":
+        pg = cfg["postgresql"]
+        return f"postgresql+psycopg2://{pg['user']}:{pg['password']}@{pg['host']}:{pg['port']}/{pg['database']}"
+    ```
+    
+    <Info>
+    PostgreSQL is ideal for:
+    - Production environments
+    - Large-scale deployments
+    - Complex queries and data integrity requirements
+    - Advanced features like JSON support, full-text search
+    </Info>
+  </Tab>
+</Tabs>
+
+## How Configuration is Loaded
+
+The application loads database configuration through a multi-step process:
+
+<Steps>
+  <Step title="Load Main Config">
+    The `load_app_config()` function in `app/config.py:5-22` reads `config.yaml`:
+    
+    ```python
+    def load_app_config():
+        with open("config.yaml", "r") as f:
+            cfg = yaml.safe_load(f)
+    
+        db_config_path = cfg["database_config_path"]
+    ```
+  </Step>
+  
+  <Step title="Load Database Config">
+    It then reads the database configuration file:
+    
+    ```python
+    if not os.path.isfile(db_config_path):
+        raise FileNotFoundError(f"Database config file not found: {db_config_path}")
+    
+    with open(db_config_path, "r") as f:
+        db_cfg = yaml.safe_load(f)
+    ```
+  </Step>
+  
+  <Step title="Construct Database URI">
+    The database URI is constructed using `construct_db_uri()` from `app/db_utils.py:3-22`:
+    
+    ```python
+    db_uri = construct_db_uri(db_cfg)
+    return {
+        "SQLALCHEMY_DATABASE_URI": db_uri,
+        "style": cfg.get("style", {}),
+        "flask": cfg.get("flask", {"port": 8080, "debug": False})
+    }
+    ```
+  </Step>
+  
+  <Step title="Initialize SQLAlchemy">
+    The URI is used to configure Flask-SQLAlchemy in `app/__init__.py:12-14`:
+    
+    ```python
+    config = load_app_config()
+    app.config['SQLALCHEMY_DATABASE_URI'] = config['SQLALCHEMY_DATABASE_URI']
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    ```
+  </Step>
+</Steps>
+
+## Switching Between Databases
+
+To switch database engines:
+
+1. Update the `engine` value in `db-config.yaml`
+2. Ensure the corresponding database section is configured
+3. Restart the application
+
+<CodeGroup>
+```yaml SQLite
+engine: sqlite
+
+sqlite:
+  database: /path/to/todo.db
+```
+
+```yaml MariaDB
+engine: mariadb
+
+mariadb:
+  user: root
+  password: mariadbpass
+  host: localhost
+  port: 3306
+  database: todo_db
+```
+
+```yaml PostgreSQL
+engine: postgresql
+
+postgresql:
+  user: postgres
+  password: pgpass
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+</CodeGroup>
+
+<Warning>
+**Data Migration Required**
+
+Switching databases will not automatically migrate your data. You'll need to:
+1. Export data from the old database
+2. Switch the configuration
+3. Import data into the new database
+
+Or use a migration tool like Alembic.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="FileNotFoundError: Database config file not found">
+    Ensure the `database_config_path` in `config.yaml` points to an existing file with an absolute path.
+    
+    ```yaml
+    # Correct
+    database_config_path: "/home/user/app/db-config.yaml"
+    
+    # Incorrect - relative path may fail
+    database_config_path: "db-config.yaml"
+    ```
+  </Accordion>
+  
+  <Accordion title="ValueError: Unsupported engine">
+    The `engine` value in `db-config.yaml` must be one of: `sqlite`, `mariadb`, or `postgresql`.
+    
+    Check for typos and ensure lowercase spelling.
+  </Accordion>
+  
+  <Accordion title="Connection refused or authentication failed">
+    For MariaDB/PostgreSQL:
+    - Verify the database server is running
+    - Check username and password are correct
+    - Ensure the database exists
+    - Verify host and port settings
+    - Check firewall settings if using remote database
+  </Accordion>
+  
+  <Accordion title="Permission denied when creating SQLite database">
+    Ensure the directory for the SQLite database file exists and has write permissions.
+    
+    ```bash
+    mkdir -p /path/to/database/directory
+    chmod 755 /path/to/database/directory
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Card title="Styling Customization" icon="palette" href="/setup/styling-customization">
+  Customize the UI appearance with custom colors
+</Card>

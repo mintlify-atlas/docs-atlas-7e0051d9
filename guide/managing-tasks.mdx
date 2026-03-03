@@ -1,0 +1,217 @@
+---
+title: Managing Tasks
+description: Learn how to add, complete, and delete tasks in the Flask ToDo App
+---
+
+The Flask ToDo App provides a simple yet powerful interface for managing your daily tasks. This guide walks you through the complete task management workflow.
+
+## Overview
+
+Tasks in the app have four core properties defined in the `Task` model:
+
+```python models.py
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+Each task has a unique ID, a name (up to 255 characters), completion status, and an optional lock flag.
+
+## Adding Tasks
+
+<Steps>
+  <Step title="Navigate to the home page">
+    Open your browser and visit the application URL. You'll see the main TODO board interface.
+  </Step>
+  
+  <Step title="Enter your task">
+    In the input field at the top of the board, type what you want to do. The placeholder text reads "What do you want to do?"
+    
+    ```html
+    <input type="text" name="task_name" 
+           placeholder="What do you want to do?" required>
+    ```
+  </Step>
+  
+  <Step title="Submit the form">
+    Click the "Add" button or press Enter to create your task.
+  </Step>
+</Steps>
+
+### Backend Processing
+
+When you submit a new task, the `/add` route handles the creation:
+
+```python routes.py:15-22
+@app.route("/add", methods=["POST"])
+def add():
+    name = request.form.get("task_name")
+    if name:
+        task = Task(name=name)
+        db.session.add(task)
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+The handler:
+1. Extracts the task name from the form data
+2. Creates a new `Task` instance (with `completed=False` and `locked=False` by default)
+3. Adds it to the database session
+4. Commits the transaction
+5. Redirects back to the home page
+
+<Note>
+If the task name is empty, the task won't be created and you'll simply be redirected back to the home page.
+</Note>
+
+## Completing Tasks
+
+Tasks are organized into two sections: pending tasks and completed tasks.
+
+### Toggle Task Status
+
+To mark a task as complete (or incomplete):
+
+<Steps>
+  <Step title="Locate the task">
+    Find your task in either the pending or completed section.
+  </Step>
+  
+  <Step title="Click the checkbox">
+    Click the checkbox icon next to the task name. The task will instantly move between sections.
+  </Step>
+</Steps>
+
+### How Toggling Works
+
+The checkbox links to the `/toggle/<task_id>` route:
+
+```python routes.py:24-30
+@app.route("/toggle/<int:task_id>")
+def toggle(task_id):
+    task = Task.query.get(task_id)
+    if task:
+        task.completed = not task.completed
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+This route:
+- Looks up the task by its ID
+- Flips the `completed` boolean value
+- Saves the change to the database
+- Refreshes the page to show the updated state
+
+### Visual Feedback
+
+Completed tasks appear with different styling:
+
+```html index.html
+<div class="item item--done">
+  <a href="{{ url_for('toggle', task_id=task.id) }}" 
+     class="checkbox checkbox--checked"></a>
+  <p class="item__text item__text--done">{{ task.name }}</p>
+</div>
+```
+
+The `item--done` and `item__text--done` classes apply strikethrough text and adjusted styling to visually distinguish completed tasks.
+
+## Deleting Tasks
+
+<Warning>
+Deleting a task is permanent and cannot be undone. Make sure you really want to remove the task before clicking the delete button.
+</Warning>
+
+### Delete a Task
+
+<Steps>
+  <Step title="Find the delete button">
+    Look for the ❌ emoji next to the task you want to remove.
+  </Step>
+  
+  <Step title="Click to delete">
+    Click the delete button. The task will be immediately removed from the database.
+  </Step>
+</Steps>
+
+### Deletion Logic
+
+The `/delete/<task_id>` route handles deletion with an important safety check:
+
+```python routes.py:32-38
+@app.route("/delete/<int:task_id>")
+def delete(task_id):
+    task = Task.query.get(task_id)
+    if task and not task.locked:
+        db.session.delete(task)
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+<Note>
+Notice the `not task.locked` condition on line 35 in routes.py. This prevents locked tasks from being deleted. Learn more in the [Task Locking](/guide/task-locking) guide.
+</Note>
+
+### When Delete Doesn't Work
+
+If a task is locked, you'll see a 🔒 icon instead of the delete button:
+
+```html index.html:23-27
+{% if not task.locked %}
+  <a href="{{ url_for('delete', task_id=task.id) }}" 
+     class="delete-btn" title="Delete">❌</a>
+{% else %}
+  <span class="locked-icon" title="Locked task">🔒</span>
+{% endif %}
+```
+
+Locked tasks cannot be deleted through the web interface, protecting important tasks from accidental removal.
+
+## Task Display
+
+The home page route organizes tasks into two lists:
+
+```python routes.py:6-12
+@app.route("/")
+def index():
+    tasks = Task.query.all()
+    pending = [t for t in tasks if not t.completed]
+    completed = [t for t in tasks if t.completed]
+    style = app.config.get("style", {})
+    return render_template("index.html", pending=pending, 
+                         completed=completed, style=style)
+```
+
+This separation ensures:
+- Active tasks appear at the top for immediate visibility
+- Completed tasks are grouped separately for easy review
+- The interface remains clean and organized
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep task names concise">
+    While the database supports up to 255 characters, shorter task names (under 50 characters) display better in the UI and are easier to scan quickly.
+  </Accordion>
+  
+  <Accordion title="Use the completed section as an archive">
+    Instead of immediately deleting tasks, mark them as complete first. This gives you a record of what you've accomplished before you decide to permanently remove them.
+  </Accordion>
+  
+  <Accordion title="Lock important recurring tasks">
+    If you have tasks that repeat regularly (like "Weekly review" or "Check email"), consider locking them so they can't be accidentally deleted. Just toggle them complete/incomplete as needed.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Task Locking" icon="lock" href="/guide/task-locking">
+    Learn how to protect important tasks from deletion
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/guide/troubleshooting">
+    Solutions to common issues and errors
+  </Card>
+</CardGroup>

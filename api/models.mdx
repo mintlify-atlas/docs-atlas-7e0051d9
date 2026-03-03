@@ -1,0 +1,234 @@
+---
+title: 'Models'
+description: 'Database models and schema definitions'
+---
+
+## Overview
+
+The Flask ToDo App uses SQLAlchemy ORM for database operations. The application has a single model: `Task`, which represents individual todo items.
+
+**Implementation:** `models.py:3`
+
+## Task Model
+
+The `Task` model extends `db.Model` (SQLAlchemy base class) and represents a single todo item in the database.
+
+```python models.py
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+### Fields
+
+<ParamField path="id" type="Integer" required>
+  **Primary Key** - Unique identifier for the task
+  
+  - Auto-incremented by the database
+  - Used in URL routing for toggle and delete operations
+  - Non-nullable
+</ParamField>
+
+<ParamField path="name" type="String(255)" required>
+  **Task Name** - The description or title of the task
+  
+  - Maximum length: 255 characters
+  - Cannot be null (`nullable=False`)
+  - Set from user input via the `/add` route
+  - Displayed in the UI task lists
+</ParamField>
+
+<ParamField path="completed" type="Boolean" default="False">
+  **Completion Status** - Whether the task has been completed
+  
+  - Default value: `False` (new tasks are pending)
+  - Toggled via the `/toggle/<task_id>` route
+  - Used to separate tasks into pending vs completed lists
+  - Affects visual display in the UI
+</ParamField>
+
+<ParamField path="locked" type="Boolean" default="False">
+  **Lock Status** - Whether the task is protected from deletion
+  
+  - Default value: `False` (new tasks are unlocked)
+  - When `True`, prevents task deletion in `/delete/<task_id>` route
+  - Cannot be modified through the standard UI routes
+  - Useful for preserving important tasks
+</ParamField>
+
+## Database Schema
+
+The Task model generates the following database table:
+
+<CodeGroup>
+```sql SQLite
+CREATE TABLE task (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255) NOT NULL,
+    completed BOOLEAN DEFAULT 0,
+    locked BOOLEAN DEFAULT 0
+);
+```
+
+```sql PostgreSQL
+CREATE TABLE task (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    locked BOOLEAN DEFAULT FALSE
+);
+```
+
+```sql MariaDB
+CREATE TABLE task (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    completed TINYINT(1) DEFAULT 0,
+    locked TINYINT(1) DEFAULT 0
+);
+```
+</CodeGroup>
+
+## Usage Examples
+
+### Creating a Task
+
+```python
+from app.models import Task
+from app import db
+
+# Create new task
+task = Task(name="Buy groceries")
+db.session.add(task)
+db.session.commit()
+
+# Task will have:
+# - Auto-generated id
+# - name: "Buy groceries"
+# - completed: False (default)
+# - locked: False (default)
+```
+
+### Querying Tasks
+
+```python
+# Get all tasks
+all_tasks = Task.query.all()
+
+# Get specific task by ID
+task = Task.query.get(task_id)
+
+# Filter tasks
+pending = Task.query.filter_by(completed=False).all()
+completed = Task.query.filter_by(completed=True).all()
+locked = Task.query.filter_by(locked=True).all()
+```
+
+### Updating a Task
+
+```python
+# Toggle completion
+task = Task.query.get(task_id)
+if task:
+    task.completed = not task.completed
+    db.session.commit()
+
+# Lock a task
+task = Task.query.get(task_id)
+if task:
+    task.locked = True
+    db.session.commit()
+```
+
+### Deleting a Task
+
+```python
+# Safe deletion (respects lock status)
+task = Task.query.get(task_id)
+if task and not task.locked:
+    db.session.delete(task)
+    db.session.commit()
+
+# Force deletion (ignores lock - use with caution)
+task = Task.query.get(task_id)
+if task:
+    db.session.delete(task)
+    db.session.commit()
+```
+
+## Field Constraints
+
+<CardGroup cols={2}>
+  <Card title="Required Fields" icon="asterisk">
+    - `id` (auto-generated)
+    - `name` (user-provided)
+  </Card>
+  
+  <Card title="Optional Fields" icon="toggle-on">
+    - `completed` (defaults to False)
+    - `locked` (defaults to False)
+  </Card>
+  
+  <Card title="Validation" icon="shield-check">
+    - `name`: Must not be null
+    - `name`: Max 255 characters
+    - Booleans: Only True/False values
+  </Card>
+  
+  <Card title="Indexing" icon="database">
+    - Primary key index on `id`
+    - No additional indexes defined
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Check Lock Status Before Deletion">
+    Before deleting a task, always verify it's not locked:
+    
+    ```python
+    if task and not task.locked:
+        db.session.delete(task)
+    ```
+    
+    This prevents accidental deletion of protected tasks.
+  </Accordion>
+  
+  <Accordion title="Validate Task Name Length">
+    Although the database allows up to 255 characters, consider validating input:
+    
+    ```python
+    name = request.form.get("task_name")
+    if name and len(name) <= 255:
+        task = Task(name=name)
+    ```
+  </Accordion>
+  
+  <Accordion title="Use Query.get() for ID Lookups">
+    For primary key lookups, `Query.get()` is more efficient:
+    
+    ```python
+    # Efficient
+    task = Task.query.get(task_id)
+    
+    # Less efficient
+    task = Task.query.filter_by(id=task_id).first()
+    ```
+  </Accordion>
+  
+  <Accordion title="Commit After Modifications">
+    Always commit after modifying task properties:
+    
+    ```python
+    task.completed = True
+    db.session.commit()  # Don't forget this!
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  The Task model has no relationships with other models. It's a standalone entity representing individual todo items.
+</Note>

@@ -1,0 +1,304 @@
+---
+title: 'SQLite Setup'
+description: 'Configure SQLite database for local development'
+---
+
+## Overview
+
+SQLite is a lightweight, file-based database ideal for local development and testing. It requires no separate server process and stores the entire database in a single file.
+
+<Note>
+  SQLite is the default database engine and is perfect for getting started quickly without additional setup.
+</Note>
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install SQLite">
+    SQLite comes pre-installed on most systems. Verify installation:
+    
+    ```bash
+    sqlite3 --version
+    ```
+  </Step>
+  
+  <Step title="Install Python package">
+    The `sqlite3` module is included in Python's standard library, so no additional packages are needed.
+  </Step>
+</Steps>
+
+## Configuration
+
+### Database Config
+
+Set up your `db-config.yaml` to use SQLite:
+
+```yaml db-config.yaml
+engine: sqlite
+
+sqlite:
+  database: /full/path/to/todo.db
+
+mariadb:
+  user: root
+  password: mariadbpass
+  host: localhost
+  port: 3306
+  database: todo_db
+
+postgresql:
+  user: postgres
+  password: pgpass
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+
+<Warning>
+  Make sure to use an **absolute path** for the database file. Relative paths may cause issues depending on where the application is run from.
+</Warning>
+
+### Connection URI
+
+The application constructs the SQLite connection string using the following pattern:
+
+```python app/db_utils.py
+if engine == "sqlite":
+    sqlite_cfg = cfg["sqlite"]
+    return f"sqlite:///{sqlite_cfg['database']}"
+```
+
+This generates a URI like:
+```
+sqlite:////full/path/to/todo.db
+```
+
+## Database Initialization
+
+### Automatic Initialization
+
+When you start the Flask application, SQLAlchemy automatically creates the database and tables if they don't exist:
+
+```python app/__init__.py
+with app.app_context():
+    from . import routes
+    from .models import Task
+    db.create_all()  # Creates tables automatically
+```
+
+### Manual Initialization
+
+For manual setup or testing, use the provided initialization script:
+
+```bash scripts/init_db_sqlite.sh
+#!/bin/bash
+
+DB_FILE="./todo.db"
+
+echo "Creating SQLite database at $(realpath $DB_FILE) ..."
+
+sqlite3 "$DB_FILE" <<EOF
+CREATE TABLE IF NOT EXISTS task (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    completed BOOLEAN DEFAULT 0,
+    locked BOOLEAN DEFAULT 0
+);
+EOF
+
+if [ $? -ne 0 ]; then
+  echo "Failed!"
+  exit 1
+else
+  echo "SQLite database initialized."
+  exit 0
+fi
+```
+
+<Steps>
+  <Step title="Navigate to scripts directory">
+    ```bash
+    cd scripts
+    ```
+  </Step>
+  
+  <Step title="Make script executable">
+    ```bash
+    chmod +x init_db_sqlite.sh
+    ```
+  </Step>
+  
+  <Step title="Run initialization">
+    ```bash
+    ./init_db_sqlite.sh
+    ```
+    
+    Expected output:
+    ```
+    Creating SQLite database at /path/to/todo.db ...
+    SQLite database initialized.
+    ```
+  </Step>
+</Steps>
+
+## Database Schema
+
+The SQLite schema matches the SQLAlchemy model definition:
+
+<CodeGroup>
+
+```sql Raw SQL Schema
+CREATE TABLE IF NOT EXISTS task (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    completed BOOLEAN DEFAULT 0,
+    locked BOOLEAN DEFAULT 0
+);
+```
+
+```python SQLAlchemy Model
+from . import db
+
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+</CodeGroup>
+
+### Field Mappings
+
+| SQLAlchemy Type | SQLite Type | Notes |
+|-----------------|-------------|-------|
+| `db.Integer` | `INTEGER` | Auto-increments for primary keys |
+| `db.String(255)` | `TEXT` | SQLite uses dynamic typing |
+| `db.Boolean` | `BOOLEAN` | Stored as 0 or 1 |
+
+## Verifying the Database
+
+### Using SQLite CLI
+
+Connect to the database and inspect the schema:
+
+```bash
+sqlite3 /full/path/to/todo.db
+```
+
+```sql
+-- List all tables
+.tables
+
+-- Show task table schema
+.schema task
+
+-- Query all tasks
+SELECT * FROM task;
+
+-- Exit
+.quit
+```
+
+### Common Operations
+
+<Accordion title="View all tasks">
+  ```sql
+  SELECT id, name, completed, locked FROM task;
+  ```
+</Accordion>
+
+<Accordion title="Insert a test task">
+  ```sql
+  INSERT INTO task (name, completed, locked) 
+  VALUES ('Test task', 0, 0);
+  ```
+</Accordion>
+
+<Accordion title="Update task status">
+  ```sql
+  UPDATE task SET completed = 1 WHERE id = 1;
+  ```
+</Accordion>
+
+<Accordion title="Delete a task">
+  ```sql
+  DELETE FROM task WHERE id = 1;
+  ```
+</Accordion>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Database file not found">
+    **Error**: `OperationalError: unable to open database file`
+    
+    **Solution**:
+    - Verify the path in `db-config.yaml` is absolute
+    - Ensure the directory exists and has write permissions
+    - Check the application has permissions to create files
+  </Accordion>
+  
+  <Accordion title="Table doesn't exist">
+    **Error**: `OperationalError: no such table: task`
+    
+    **Solution**:
+    - Run the initialization script: `./scripts/init_db_sqlite.sh`
+    - Or let SQLAlchemy create tables by starting the application
+    - Check that `db.create_all()` is called in the app factory
+  </Accordion>
+  
+  <Accordion title="Permission denied">
+    **Error**: `PermissionError: [Errno 13] Permission denied`
+    
+    **Solution**:
+    - Check file/directory permissions: `ls -la /path/to/`
+    - Ensure the user running the app has write access
+    - On Linux/Mac: `chmod 755 /path/to/directory`
+  </Accordion>
+  
+  <Accordion title="Database is locked">
+    **Error**: `OperationalError: database is locked`
+    
+    **Solution**:
+    - Close any other applications accessing the database
+    - Check for stale lock files
+    - SQLite doesn't handle concurrent writes well - consider MariaDB/PostgreSQL for production
+  </Accordion>
+</AccordionGroup>
+
+## Advantages & Limitations
+
+<CardGroup cols={2}>
+  <Card title="Advantages" icon="check">
+    - Zero configuration required
+    - No separate server process
+    - Perfect for development and testing
+    - Single file database
+    - Cross-platform compatibility
+    - Built into Python
+  </Card>
+  
+  <Card title="Limitations" icon="triangle-exclamation">
+    - Limited concurrent write access
+    - Not recommended for production with high traffic
+    - No user management or access control
+    - Limited scalability
+    - File-based locking can cause issues
+  </Card>
+</CardGroup>
+
+<Warning>
+  SQLite is excellent for development but **not recommended for production** environments with multiple concurrent users. Consider [MariaDB](/database/mariadb) or [PostgreSQL](/database/postgresql) for production deployments.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Overview" icon="database" href="/database/overview">
+    Learn about the database architecture
+  </Card>
+  <Card title="MariaDB Setup" icon="database" href="/database/mariadb">
+    Configure MariaDB for production
+  </Card>
+</CardGroup>

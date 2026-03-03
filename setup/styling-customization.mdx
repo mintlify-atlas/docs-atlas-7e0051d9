@@ -1,0 +1,370 @@
+---
+title: 'Styling Customization'
+description: 'Customize the UI appearance of your Flask ToDo App'
+icon: 'palette'
+---
+
+## Overview
+
+The Flask ToDo App allows you to customize the user interface appearance through the `config.yaml` file. You can modify colors for various UI elements to match your branding or personal preferences.
+
+<Info>
+All styling customization is done through YAML configuration - no code changes required.
+</Info>
+
+## Configuration Location
+
+Styling is configured in the `config.yaml` file under the `style` section:
+
+```yaml config.yaml
+database_config_path: "/full/path/to/db-config.yaml"
+
+# Uncomment to apply custom style
+# style:
+#   background_color: "#1a1a1a"
+#   text_color: "#2a750f"
+#   button_color: "#4cc121"
+#   button_text_color: "#ffffff"
+#   completed_text_color: "#6c757d"
+
+flask:
+  port: 8080
+  debug: false
+```
+
+## Available Style Options
+
+The following style properties can be customized:
+
+<ParamField path="background_color" type="string" default="Default browser background">
+  The background color of the application. Use hex color codes (e.g., `#1a1a1a`).
+</ParamField>
+
+<ParamField path="text_color" type="string" default="Default browser text color">
+  The primary text color used throughout the application.
+</ParamField>
+
+<ParamField path="button_color" type="string" default="Bootstrap default">
+  The background color for buttons (e.g., Add Task, Delete buttons).
+</ParamField>
+
+<ParamField path="button_text_color" type="string" default="White">
+  The text color displayed on buttons.
+</ParamField>
+
+<ParamField path="completed_text_color" type="string" default="#6c757d">
+  The text color for completed tasks (typically a muted/gray color).
+</ParamField>
+
+## Applying Custom Styles
+
+<Steps>
+  <Step title="Open config.yaml">
+    Open the `config.yaml` file in your text editor.
+  </Step>
+  
+  <Step title="Uncomment Style Section">
+    Remove the `#` comment markers from the style section:
+    
+    ```yaml
+    style:
+      background_color: "#1a1a1a"
+      text_color: "#2a750f"
+      button_color: "#4cc121"
+      button_text_color: "#ffffff"
+      completed_text_color: "#6c757d"
+    ```
+  </Step>
+  
+  <Step title="Customize Colors">
+    Modify the hex color values to your preferred colors. You can use any valid hex color code.
+    
+    <Note>
+    Use a color picker tool or website like [https://htmlcolorcodes.com](https://htmlcolorcodes.com) to find hex codes for your desired colors.
+    </Note>
+  </Step>
+  
+  <Step title="Save and Restart">
+    Save the `config.yaml` file and restart your Flask application:
+    
+    ```bash
+    python run.py
+    ```
+  </Step>
+</Steps>
+
+## Style Examples
+
+Here are some pre-configured themes you can use:
+
+<Tabs>
+  <Tab title="Dark Theme">
+    A modern dark theme with green accents:
+    
+    ```yaml config.yaml
+    style:
+      background_color: "#1a1a1a"
+      text_color: "#e0e0e0"
+      button_color: "#4cc121"
+      button_text_color: "#ffffff"
+      completed_text_color: "#6c757d"
+    ```
+  </Tab>
+  
+  <Tab title="Light Theme">
+    A clean light theme with blue accents:
+    
+    ```yaml config.yaml
+    style:
+      background_color: "#ffffff"
+      text_color: "#333333"
+      button_color: "#007bff"
+      button_text_color: "#ffffff"
+      completed_text_color: "#999999"
+    ```
+  </Tab>
+  
+  <Tab title="Vibrant Theme">
+    A colorful theme with purple and pink:
+    
+    ```yaml config.yaml
+    style:
+      background_color: "#f8f9fa"
+      text_color: "#5a3d8a"
+      button_color: "#e91e63"
+      button_text_color: "#ffffff"
+      completed_text_color: "#b0b0b0"
+    ```
+  </Tab>
+  
+  <Tab title="Forest Theme">
+    An earthy theme with green tones (as shown in default config):
+    
+    ```yaml config.yaml
+    style:
+      background_color: "#1a1a1a"
+      text_color: "#2a750f"
+      button_color: "#4cc121"
+      button_text_color: "#ffffff"
+      completed_text_color: "#6c757d"
+    ```
+  </Tab>
+</Tabs>
+
+## How Styles Are Applied
+
+The application loads and applies styles through the following process:
+
+<Steps>
+  <Step title="Configuration Loading">
+    The `load_app_config()` function in `app/config.py:5-22` reads the style configuration:
+    
+    ```python
+    def load_app_config():
+        with open("config.yaml", "r") as f:
+            cfg = yaml.safe_load(f)
+        
+        # ...
+        
+        return {
+            "SQLALCHEMY_DATABASE_URI": db_uri,
+            "style": cfg.get("style", {}),
+            "flask": cfg.get("flask", {"port": 8080, "debug": False})
+        }
+    ```
+    
+    <Note>
+    If the `style` key is not present in the config, an empty dictionary `{}` is returned, and default styles will be used.
+    </Note>
+  </Step>
+  
+  <Step title="Style Injection">
+    The styles are stored in the Flask app configuration in `app/__init__.py:15`:
+    
+    ```python
+    config = load_app_config()
+    app.config['SQLALCHEMY_DATABASE_URI'] = config['SQLALCHEMY_DATABASE_URI']
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['style'] = config.get('style', {})
+    ```
+  </Step>
+  
+  <Step title="Template Rendering">
+    The styles are passed to templates and applied via inline CSS or style attributes. The Flask templates access these values to dynamically style the UI elements.
+  </Step>
+</Steps>
+
+## Default Behavior
+
+<Info>
+**No Style Configuration**
+
+If you don't specify a `style` section in `config.yaml`, the application will use default browser styles and Bootstrap framework defaults. This is perfectly fine for most use cases.
+</Info>
+
+The application handles missing style configuration gracefully:
+
+```python
+app.config['style'] = config.get('style', {})
+```
+
+This means:
+- If `style` is not defined, an empty dictionary is used
+- Templates can safely check for style values without errors
+- Default browser/Bootstrap styles will be applied
+
+## Color Format
+
+All color values should be specified as hex color codes:
+
+<CodeGroup>
+```yaml Correct
+style:
+  background_color: "#1a1a1a"  # 6-digit hex
+  text_color: "#fff"           # 3-digit hex (shorthand)
+  button_color: "#4cc121"
+```
+
+```yaml Incorrect
+style:
+  background_color: "black"     # Named colors not recommended
+  text_color: "rgb(255,0,0)"   # RGB format not supported
+  button_color: "#gg0000"      # Invalid hex characters
+```
+</CodeGroup>
+
+<Warning>
+Always use quotes around hex color codes in YAML to prevent parsing issues, especially for values starting with `#`.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Ensure Sufficient Contrast">
+    Make sure there's enough contrast between text and background colors for readability.
+    
+    Use online contrast checkers to ensure WCAG accessibility standards:
+    - **Normal text**: 4.5:1 contrast ratio minimum
+    - **Large text**: 3:1 contrast ratio minimum
+    
+    ```yaml Good Contrast
+    style:
+      background_color: "#ffffff"
+      text_color: "#333333"  # Dark gray on white - high contrast
+    ```
+    
+    ```yaml Poor Contrast
+    style:
+      background_color: "#ffffff"
+      text_color: "#cccccc"  # Light gray on white - low contrast
+    ```
+  </Accordion>
+  
+  <Accordion title="Test Color Combinations">
+    Test your color scheme in the actual application before finalizing:
+    
+    1. Apply the colors
+    2. Add some tasks
+    3. Mark some tasks as completed
+    4. Verify all elements are clearly visible
+  </Accordion>
+  
+  <Accordion title="Use Consistent Color Palette">
+    Choose colors that work well together. Use color palette generators like:
+    - Adobe Color
+    - Coolors
+    - Material Design Color Tool
+  </Accordion>
+  
+  <Accordion title="Document Your Theme">
+    If you create a custom theme, add a comment in your config file:
+    
+    ```yaml
+    # Custom Brand Theme - Matches company colors
+    style:
+      background_color: "#1a1a1a"
+      text_color: "#2a750f"
+      button_color: "#4cc121"
+      button_text_color: "#ffffff"
+      completed_text_color: "#6c757d"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Styles Not Applying">
+    If your custom styles aren't being applied:
+    
+    1. **Check YAML syntax** - Ensure proper indentation (2 spaces)
+    2. **Verify quotes** - Hex codes should be in quotes: `"#1a1a1a"`
+    3. **Restart the app** - Configuration is loaded on startup
+    4. **Clear browser cache** - Old styles may be cached
+    5. **Check for typos** - Property names must match exactly
+  </Accordion>
+  
+  <Accordion title="YAML Parsing Error">
+    If you get a YAML parsing error:
+    
+    ```python
+    yaml.scanner.ScannerError: ...
+    ```
+    
+    Common causes:
+    - Missing quotes around hex codes
+    - Incorrect indentation (use spaces, not tabs)
+    - Special characters not escaped
+    
+    Validate your YAML using an online YAML validator.
+  </Accordion>
+  
+  <Accordion title="Colors Look Different Than Expected">
+    - Verify hex codes are correct
+    - Check if browser extensions (like Dark Reader) are interfering
+    - Some monitors may display colors differently - test on multiple devices
+  </Accordion>
+</AccordionGroup>
+
+## Resetting to Default Styles
+
+To reset to default styles:
+
+<Steps>
+  <Step title="Comment Out Style Section">
+    Add `#` before each style line:
+    
+    ```yaml
+    # style:
+    #   background_color: "#1a1a1a"
+    #   text_color: "#2a750f"
+    #   button_color: "#4cc121"
+    #   button_text_color: "#ffffff"
+    #   completed_text_color: "#6c757d"
+    ```
+  </Step>
+  
+  <Step title="Or Remove Style Section Entirely">
+    Simply delete the entire `style:` section from `config.yaml`.
+  </Step>
+  
+  <Step title="Restart Application">
+    Restart the Flask app to apply changes:
+    
+    ```bash
+    python run.py
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Configuration" icon="database" href="/setup/database-configuration">
+    Configure your database backend
+  </Card>
+  
+  <Card title="Application Overview" icon="book" href="/introduction">
+    Learn more about the Flask ToDo App
+  </Card>
+</CardGroup>

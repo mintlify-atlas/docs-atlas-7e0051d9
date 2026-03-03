@@ -1,0 +1,657 @@
+---
+title: 'PostgreSQL Setup'
+description: 'Configure PostgreSQL for production deployment'
+---
+
+## Overview
+
+PostgreSQL is an advanced, open-source relational database known for its robustness, extensibility, and standards compliance. It's excellent for production environments requiring complex queries and data integrity.
+
+<Note>
+  PostgreSQL offers advanced features like JSON support, full-text search, and sophisticated query optimization, making it ideal for scalable applications.
+</Note>
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install PostgreSQL Server">
+    <Tabs>
+      <Tab title="Ubuntu/Debian">
+        ```bash
+        sudo apt update
+        sudo apt install postgresql postgresql-contrib
+        ```
+      </Tab>
+      
+      <Tab title="CentOS/RHEL">
+        ```bash
+        sudo yum install postgresql-server postgresql-contrib
+        sudo postgresql-setup initdb
+        sudo systemctl start postgresql
+        sudo systemctl enable postgresql
+        ```
+      </Tab>
+      
+      <Tab title="macOS">
+        ```bash
+        brew install postgresql
+        brew services start postgresql
+        ```
+      </Tab>
+      
+      <Tab title="Docker">
+        ```bash
+        docker run -d \
+          --name postgres \
+          -e POSTGRES_PASSWORD=your_password \
+          -e POSTGRES_DB=todo_db \
+          -p 5432:5432 \
+          postgres:latest
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Verify installation">
+    ```bash
+    psql --version
+    ```
+    
+    Check PostgreSQL service status:
+    ```bash
+    sudo systemctl status postgresql
+    ```
+  </Step>
+  
+  <Step title="Install Python driver">
+    The application uses psycopg2 to connect to PostgreSQL:
+    
+    ```bash
+    pip install psycopg2-binary
+    ```
+    
+    Or for production (requires PostgreSQL dev packages):
+    ```bash
+    pip install psycopg2
+    ```
+  </Step>
+</Steps>
+
+## Database Setup
+
+### Create Database and User
+
+Switch to PostgreSQL user:
+
+```bash
+sudo -u postgres psql
+```
+
+Create the database and user:
+
+```sql
+-- Create user with password
+CREATE USER todouser WITH PASSWORD 'your_secure_password';
+
+-- Create database
+CREATE DATABASE todo_db OWNER todouser;
+
+-- Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE todo_db TO todouser;
+
+-- Connect to the database
+\c todo_db
+
+-- Grant schema privileges (PostgreSQL 15+)
+GRANT ALL ON SCHEMA public TO todouser;
+
+-- Verify
+\du
+\l
+
+-- Exit
+\q
+```
+
+<Warning>
+  Replace `your_secure_password` with a strong password. Use password complexity requirements for production environments.
+</Warning>
+
+### Alternative: Using createuser and createdb
+
+```bash
+# Create user (will prompt for password)
+sudo -u postgres createuser --interactive --pwprompt todouser
+
+# Create database
+sudo -u postgres createdb -O todouser todo_db
+```
+
+## Configuration
+
+### Database Config
+
+Update your `db-config.yaml` to use PostgreSQL:
+
+```yaml db-config.yaml
+engine: postgresql
+
+sqlite:
+  database: /full/path/to/todo.db
+
+mariadb:
+  user: root
+  password: mariadbpass
+  host: localhost
+  port: 3306
+  database: todo_db
+
+postgresql:
+  user: todouser
+  password: your_secure_password
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+
+### Connection URI
+
+The application constructs the PostgreSQL connection string:
+
+```python app/db_utils.py
+elif engine == "postgresql":
+    pg = cfg["postgresql"]
+    return f"postgresql+psycopg2://{pg['user']}:{pg['password']}@{pg['host']}:{pg['port']}/{pg['database']}"
+```
+
+This generates a URI like:
+```
+postgresql+psycopg2://todouser:your_secure_password@localhost:5432/todo_db
+```
+
+### Configuration Options
+
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| `user` | Database username | - | Yes |
+| `password` | Database password | - | Yes |
+| `host` | Database server hostname | `localhost` | Yes |
+| `port` | Database server port | `5432` | Yes |
+| `database` | Database name | - | Yes |
+
+## Database Initialization
+
+### Automatic Initialization
+
+SQLAlchemy automatically creates tables when the application starts:
+
+```python app/__init__.py
+with app.app_context():
+    from . import routes
+    from .models import Task
+    db.create_all()  # Creates tables automatically
+```
+
+### Manual Initialization
+
+Use the provided initialization script:
+
+```bash scripts/init_db_postgresql.sh
+#!/bin/bash
+
+DB_NAME="todo_db"
+USER="your_user"
+PASSWORD="your_password"
+HOST="localhost"
+PORT="5432"
+
+export PGPASSWORD="$PASSWORD"
+
+echo "Initializing PostgreSQL schema..."
+
+psql -U "$USER" -h "$HOST" -p "$PORT" -d "$DB_NAME" <<EOF
+CREATE TABLE IF NOT EXISTS task (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    locked BOOLEAN DEFAULT FALSE
+);
+EOF
+
+if [ $? -ne 0 ]; then
+  echo "Failed!"
+  exit 1
+else
+  echo "PostgreSQL schema initialized."
+  exit 0
+fi
+```
+
+<Steps>
+  <Step title="Update script credentials">
+    Edit the script and replace the credentials:
+    
+    ```bash
+    nano scripts/init_db_postgresql.sh
+    ```
+    
+    Update:
+    - `USER="todouser"`
+    - `PASSWORD="your_secure_password"`
+    - `DB_NAME="todo_db"`
+  </Step>
+  
+  <Step title="Make script executable">
+    ```bash
+    chmod +x scripts/init_db_postgresql.sh
+    ```
+  </Step>
+  
+  <Step title="Run initialization">
+    ```bash
+    ./scripts/init_db_postgresql.sh
+    ```
+    
+    Expected output:
+    ```
+    Initializing PostgreSQL schema...
+    PostgreSQL schema initialized.
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  The script uses `PGPASSWORD` environment variable to pass the password securely. This is automatically unset after the script completes.
+</Note>
+
+## Database Schema
+
+The PostgreSQL schema matches the SQLAlchemy model:
+
+<CodeGroup>
+
+```sql Raw SQL Schema
+CREATE TABLE IF NOT EXISTS task (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    locked BOOLEAN DEFAULT FALSE
+);
+```
+
+```python SQLAlchemy Model
+from . import db
+
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+</CodeGroup>
+
+### Field Mappings
+
+| SQLAlchemy Type | PostgreSQL Type | Notes |
+|-----------------|-----------------|-------|
+| `db.Integer` (PK) | `SERIAL` | Auto-incrementing integer sequence |
+| `db.String(255)` | `VARCHAR(255)` | Variable-length string with limit |
+| `db.Boolean` | `BOOLEAN` | Native boolean type |
+
+<Note>
+  PostgreSQL's `SERIAL` type is a shorthand for creating an integer column with an auto-incrementing sequence. It's equivalent to `INTEGER NOT NULL DEFAULT nextval('sequence_name')`.
+</Note>
+
+## Verifying the Database
+
+### Using psql CLI
+
+Connect to the database:
+
+```bash
+psql -U todouser -d todo_db -h localhost
+```
+
+Inspect the database:
+
+```sql
+-- List all tables
+\dt
+
+-- Describe task table
+\d task
+
+-- Query all tasks
+SELECT * FROM task;
+
+-- Show table size
+\dt+ task
+
+-- List databases
+\l
+
+-- Exit
+\q
+```
+
+### Common Operations
+
+<Accordion title="View database size">
+  ```sql
+  SELECT 
+    pg_size_pretty(pg_database_size('todo_db')) AS database_size;
+  ```
+</Accordion>
+
+<Accordion title="View table size">
+  ```sql
+  SELECT 
+    pg_size_pretty(pg_total_relation_size('task')) AS table_size;
+  ```
+</Accordion>
+
+<Accordion title="Check active connections">
+  ```sql
+  SELECT 
+    datname, 
+    count(*) as connections
+  FROM pg_stat_activity
+  WHERE datname = 'todo_db'
+  GROUP BY datname;
+  ```
+</Accordion>
+
+<Accordion title="View table indexes">
+  ```sql
+  SELECT * FROM pg_indexes WHERE tablename = 'task';
+  ```
+</Accordion>
+
+<Accordion title="Backup database">
+  ```bash
+  pg_dump -U todouser -d todo_db -h localhost > todo_db_backup.sql
+  ```
+  
+  Or with custom format (recommended):
+  ```bash
+  pg_dump -U todouser -d todo_db -h localhost -Fc > todo_db_backup.dump
+  ```
+</Accordion>
+
+<Accordion title="Restore database">
+  From SQL file:
+  ```bash
+  psql -U todouser -d todo_db -h localhost < todo_db_backup.sql
+  ```
+  
+  From custom format:
+  ```bash
+  pg_restore -U todouser -d todo_db -h localhost todo_db_backup.dump
+  ```
+</Accordion>
+
+## Performance Optimization
+
+### Indexing
+
+Add indexes for frequently queried columns:
+
+```sql
+-- Index on completed status for filtering
+CREATE INDEX idx_task_completed ON task(completed);
+
+-- Index on locked status
+CREATE INDEX idx_task_locked ON task(locked);
+
+-- Composite index for common queries
+CREATE INDEX idx_task_completed_locked ON task(completed, locked);
+
+-- Partial index for incomplete tasks
+CREATE INDEX idx_task_incomplete ON task(completed) WHERE completed = FALSE;
+```
+
+### Connection Pooling
+
+Configure SQLAlchemy connection pool:
+
+```python
+# In app/__init__.py or config
+app.config['SQLALCHEMY_POOL_SIZE'] = 10
+app.config['SQLALCHEMY_POOL_RECYCLE'] = 3600
+app.config['SQLALCHEMY_POOL_TIMEOUT'] = 30
+app.config['SQLALCHEMY_POOL_PRE_PING'] = True
+app.config['SQLALCHEMY_MAX_OVERFLOW'] = 20
+```
+
+### Query Performance
+
+Analyze query performance:
+
+```sql
+-- Explain query execution
+EXPLAIN ANALYZE SELECT * FROM task WHERE completed = FALSE;
+
+-- Update table statistics
+ANALYZE task;
+
+-- Vacuum database
+VACUUM ANALYZE task;
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection refused">
+    **Error**: `could not connect to server: Connection refused`
+    
+    **Solution**:
+    - Verify PostgreSQL is running: `sudo systemctl status postgresql`
+    - Start PostgreSQL: `sudo systemctl start postgresql`
+    - Check port 5432 is open: `sudo netstat -tlnp | grep 5432`
+    - Verify `listen_addresses` in `postgresql.conf`:
+      ```
+      listen_addresses = 'localhost'  # or '*' for all interfaces
+      ```
+  </Accordion>
+  
+  <Accordion title="Peer authentication failed">
+    **Error**: `FATAL: Peer authentication failed for user "todouser"`
+    
+    **Solution**:
+    Edit `/etc/postgresql/[version]/main/pg_hba.conf`:
+    
+    Change:
+    ```
+    local   all   all   peer
+    ```
+    
+    To:
+    ```
+    local   all   all   md5
+    ```
+    
+    Restart PostgreSQL:
+    ```bash
+    sudo systemctl restart postgresql
+    ```
+  </Accordion>
+  
+  <Accordion title="Password authentication failed">
+    **Error**: `password authentication failed for user "todouser"`
+    
+    **Solution**:
+    - Verify password in `db-config.yaml` is correct
+    - Reset user password:
+      ```sql
+      ALTER USER todouser WITH PASSWORD 'new_password';
+      ```
+    - Check `pg_hba.conf` allows md5 or scram-sha-256 authentication
+  </Accordion>
+  
+  <Accordion title="Database does not exist">
+    **Error**: `FATAL: database "todo_db" does not exist`
+    
+    **Solution**:
+    - Create the database:
+      ```bash
+      sudo -u postgres createdb -O todouser todo_db
+      ```
+    - Or via SQL:
+      ```sql
+      CREATE DATABASE todo_db OWNER todouser;
+      ```
+  </Accordion>
+  
+  <Accordion title="Table doesn't exist">
+    **Error**: `relation "task" does not exist`
+    
+    **Solution**:
+    - Run initialization script: `./scripts/init_db_postgresql.sh`
+    - Or let SQLAlchemy create it by starting the app
+    - Verify with: `\dt` in psql
+  </Accordion>
+  
+  <Accordion title="psycopg2 not installed">
+    **Error**: `ModuleNotFoundError: No module named 'psycopg2'`
+    
+    **Solution**:
+    ```bash
+    pip install psycopg2-binary
+    ```
+  </Accordion>
+  
+  <Accordion title="Permission denied for schema public">
+    **Error**: `permission denied for schema public`
+    
+    **Solution** (PostgreSQL 15+):
+    ```sql
+    GRANT ALL ON SCHEMA public TO todouser;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO todouser;
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<Card title="Security Checklist" icon="shield">
+  - Use strong, unique passwords for database users
+  - Configure `pg_hba.conf` to restrict access by IP/user
+  - Use SSL/TLS for remote connections
+  - Regularly update PostgreSQL to latest version
+  - Limit user privileges (GRANT only necessary permissions)
+  - Enable query logging for auditing
+  - Regular backup and disaster recovery testing
+  - Use environment variables for credentials
+  - Consider using connection encryption (SSL mode)
+</Card>
+
+## Remote Access
+
+### Enable Remote Connections
+
+Edit `postgresql.conf`:
+
+```ini /etc/postgresql/[version]/main/postgresql.conf
+listen_addresses = '*'  # Listen on all interfaces
+```
+
+Edit `pg_hba.conf` to allow remote connections:
+
+```ini /etc/postgresql/[version]/main/pg_hba.conf
+# Allow from specific IP
+host    todo_db    todouser    192.168.1.0/24    md5
+
+# Or allow from anywhere (not recommended for production)
+host    all        all         0.0.0.0/0         md5
+```
+
+Restart PostgreSQL:
+```bash
+sudo systemctl restart postgresql
+```
+
+<Warning>
+  Remote access should be carefully restricted. Use firewall rules and specific IP ranges in `pg_hba.conf` to limit access to trusted sources only.
+</Warning>
+
+### SSL/TLS Configuration
+
+For encrypted connections, enable SSL in `postgresql.conf`:
+
+```ini
+ssl = on
+ssl_cert_file = '/path/to/server.crt'
+ssl_key_file = '/path/to/server.key'
+```
+
+Update connection URI:
+```python
+f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}?sslmode=require"
+```
+
+## Advanced Features
+
+### JSON Support
+
+PostgreSQL has native JSON support for storing structured data:
+
+```sql
+-- Add JSON column
+ALTER TABLE task ADD COLUMN metadata JSONB;
+
+-- Query JSON data
+SELECT * FROM task WHERE metadata->>'priority' = 'high';
+```
+
+### Full-Text Search
+
+Implement full-text search on task names:
+
+```sql
+-- Add tsvector column
+ALTER TABLE task ADD COLUMN search_vector tsvector;
+
+-- Update search vector
+UPDATE task SET search_vector = to_tsvector('english', name);
+
+-- Create index
+CREATE INDEX idx_task_search ON task USING GIN(search_vector);
+
+-- Search
+SELECT * FROM task WHERE search_vector @@ to_tsquery('shopping');
+```
+
+## Monitoring
+
+### View Statistics
+
+```sql
+-- Table statistics
+SELECT * FROM pg_stat_user_tables WHERE relname = 'task';
+
+-- Database statistics
+SELECT * FROM pg_stat_database WHERE datname = 'todo_db';
+
+-- Connection statistics
+SELECT * FROM pg_stat_activity WHERE datname = 'todo_db';
+```
+
+### Slow Query Log
+
+Enable slow query logging in `postgresql.conf`:
+
+```ini
+log_min_duration_statement = 1000  # Log queries taking > 1 second
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Overview" icon="database" href="/database/overview">
+    Learn about the database architecture
+  </Card>
+  <Card title="SQLite Setup" icon="database" href="/database/sqlite">
+    Set up SQLite for development
+  </Card>
+</CardGroup>

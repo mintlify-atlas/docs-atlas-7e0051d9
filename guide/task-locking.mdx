@@ -1,0 +1,305 @@
+---
+title: Task Locking
+description: Protect important tasks from accidental deletion with the locking feature
+---
+
+The Flask ToDo App includes a task locking feature that prevents important tasks from being accidentally deleted. This guide explains how locking works and how to manage locked tasks.
+
+## What is Task Locking?
+
+Task locking is a safety mechanism that prevents specific tasks from being removed from the system. When a task is locked, the delete button is hidden and deletion requests are blocked at the database level.
+
+### The Locked Property
+
+Every task has a `locked` boolean field in the database:
+
+```python models.py:3-7
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+By default, all new tasks are created with `locked=False`, meaning they can be deleted normally.
+
+## How Locking Prevents Deletion
+
+### Backend Protection
+
+The deletion route includes a lock check:
+
+```python routes.py:32-38
+@app.route("/delete/<int:task_id>")
+def delete(task_id):
+    task = Task.query.get(task_id)
+    if task and not task.locked:
+        db.session.delete(task)
+        db.session.commit()
+    return redirect(url_for("index"))
+```
+
+The critical line is `if task and not task.locked:` on line 35 in routes.py. This condition ensures:
+
+1. The task exists in the database (`task` is truthy)
+2. The task is NOT locked (`not task.locked` is True)
+
+If either condition fails, the deletion is silently skipped and the user is redirected back to the home page.
+
+<Note>
+Even if someone tries to delete a locked task by directly visiting `/delete/<task_id>`, the backend will reject the operation. This provides server-side protection against accidental or malicious deletion attempts.
+</Note>
+
+### Frontend Indication
+
+The UI visually indicates locked tasks by replacing the delete button with a lock icon:
+
+```html index.html:23-27
+{% if not task.locked %}
+  <a href="{{ url_for('delete', task_id=task.id) }}" 
+     class="delete-btn" title="Delete">❌</a>
+{% else %}
+  <span class="locked-icon" title="Locked task">🔒</span>
+{% endif %}
+```
+
+This same logic appears twice in the template:
+- Once for pending tasks (lines 23-27 in index.html)
+- Once for completed tasks (lines 38-42 in index.html)
+
+### Visual Example
+
+Here's how tasks appear in the interface:
+
+| Task State | Display |
+|------------|----------|
+| Unlocked, Pending | ☐ Task name ❌ |
+| Unlocked, Completed | ☑ ~~Task name~~ ❌ |
+| Locked, Pending | ☐ Task name 🔒 |
+| Locked, Completed | ☑ ~~Task name~~ 🔒 |
+
+<Warning>
+Locking a task does NOT prevent it from being toggled between completed and incomplete states. It only prevents deletion.
+</Warning>
+
+## When to Use Task Locking
+
+Task locking is useful in several scenarios:
+
+<AccordionGroup>
+  <Accordion title="Recurring Tasks" icon="repeat">
+    Tasks that you perform regularly (daily, weekly, monthly) benefit from locking. Instead of recreating "Check emails" or "Weekly review" every time, lock these tasks and simply toggle their completion status.
+    
+    **Example workflow:**
+    1. Create task: "Submit weekly report"
+    2. Lock the task (via database)
+    3. Each week: mark complete → mark incomplete for next week
+  </Accordion>
+  
+  <Accordion title="Reference Tasks" icon="bookmark">
+    Tasks that contain important information or serve as reminders should be locked to prevent accidental removal.
+    
+    **Examples:**
+    - "Project deadline: March 15th"
+    - "Important meeting every Monday 10 AM"
+    - "Password reset instructions"
+  </Accordion>
+  
+  <Accordion title="Template Tasks" icon="copy">
+    If you have tasks that serve as templates or checklists for repeated workflows, locking them preserves the original while you work.
+  </Accordion>
+  
+  <Accordion title="Multi-User Scenarios" icon="users">
+    In shared environments, administrators might lock certain tasks to ensure they remain visible to all users and can't be removed by individual team members.
+  </Accordion>
+</AccordionGroup>
+
+## Managing Locked Tasks
+
+### Locking a Task
+
+<Note>
+The current web interface does not include a lock/unlock button. Tasks must be locked through direct database manipulation or API extensions.
+</Note>
+
+To lock a task, you need to update the database directly. Here are common methods:
+
+<Tabs>
+  <Tab title="SQLite">
+    If you're using SQLite as your database:
+    
+    ```bash
+    sqlite3 /path/to/your/database.db
+    ```
+    
+    Then run:
+    
+    ```sql
+    UPDATE task SET locked = 1 WHERE id = <task_id>;
+    ```
+    
+    To find the task ID, you can query:
+    
+    ```sql
+    SELECT id, name, locked FROM task;
+    ```
+  </Tab>
+  
+  <Tab title="PostgreSQL">
+    Connect to your PostgreSQL database:
+    
+    ```bash
+    psql -d your_database_name
+    ```
+    
+    Lock a task:
+    
+    ```sql
+    UPDATE task SET locked = true WHERE id = <task_id>;
+    ```
+    
+    View all tasks with their lock status:
+    
+    ```sql
+    SELECT id, name, completed, locked FROM task;
+    ```
+  </Tab>
+  
+  <Tab title="Python Shell">
+    You can also use Flask's shell context:
+    
+    ```python
+    from app import create_app, db
+    from app.models import Task
+    
+    app = create_app()
+    with app.app_context():
+        # Find the task
+        task = Task.query.filter_by(name="Important task").first()
+        
+        # Lock it
+        task.locked = True
+        db.session.commit()
+        
+        print(f"Task '{task.name}' is now locked")
+    ```
+  </Tab>
+</Tabs>
+
+### Unlocking a Task
+
+To unlock a task (re-enable deletion), follow the same process but set `locked` to `False` (or `0` for SQLite):
+
+```sql
+UPDATE task SET locked = 0 WHERE id = <task_id>;
+```
+
+```python
+task.locked = False
+db.session.commit()
+```
+
+## Technical Implementation Details
+
+### Database Schema
+
+The `locked` column is defined as a Boolean with a default value:
+
+```python
+locked = db.Column(db.Boolean, default=False)
+```
+
+In SQLite, this is stored as an integer (0 or 1). In PostgreSQL, it's a native boolean type.
+
+### Query Behavior
+
+The current implementation doesn't filter locked tasks in queries. Both locked and unlocked tasks appear in the task list:
+
+```python routes.py:6-12
+@app.route("/")
+def index():
+    tasks = Task.query.all()  # Returns ALL tasks
+    pending = [t for t in tasks if not t.completed]
+    completed = [t for t in tasks if t.completed]
+    style = app.config.get("style", {})
+    return render_template("index.html", pending=pending, 
+                         completed=completed, style=style)
+```
+
+Locked tasks are filtered only in the template layer for UI display purposes.
+
+### Security Considerations
+
+<Warning>
+The lock check only exists in the `/delete/<task_id>` route. If you add additional deletion methods (like bulk delete, API endpoints, or admin functions), you must implement the same `not task.locked` check to maintain protection.
+</Warning>
+
+**Example of a safe bulk delete implementation:**
+
+```python
+@app.route("/delete_completed", methods=["POST"])
+def delete_completed():
+    completed_tasks = Task.query.filter_by(completed=True).all()
+    for task in completed_tasks:
+        if not task.locked:  # Critical check
+            db.session.delete(task)
+    db.session.commit()
+    return redirect(url_for("index"))
+```
+
+## Extending the Lock Feature
+
+Here are some ideas for extending the lock functionality:
+
+<CardGroup cols={2}>
+  <Card title="Add Lock Toggle UI" icon="toggle-on">
+    Implement a lock/unlock button in the web interface so users can manage locks without database access.
+  </Card>
+  
+  <Card title="Lock Permissions" icon="shield">
+    Add user authentication and restrict lock/unlock operations to administrators only.
+  </Card>
+  
+  <Card title="Lock Notifications" icon="bell">
+    Show a message when users try to delete a locked task: "This task is locked and cannot be deleted."
+  </Card>
+  
+  <Card title="Bulk Lock Operations" icon="layer-group">
+    Create routes to lock/unlock multiple tasks at once, or lock all completed tasks.
+  </Card>
+</CardGroup>
+
+## FAQ
+
+<AccordionGroup>
+  <Accordion title="Can I toggle a locked task's completion status?">
+    Yes! Locking only prevents deletion. You can still click the checkbox to mark a locked task as complete or incomplete. This is intentional design - locked tasks are often recurring items that need to be checked off repeatedly.
+  </Accordion>
+  
+  <Accordion title="What happens if I try to delete a locked task via URL?">
+    If you manually navigate to `/delete/<task_id>` for a locked task, the backend will check `not task.locked`, find it's False, skip the deletion, and redirect you back to the home page. No error is shown.
+  </Accordion>
+  
+  <Accordion title="Can I see which tasks are locked?">
+    Yes, locked tasks display a 🔒 icon instead of the ❌ delete button. You can also query the database directly to see the `locked` column value for all tasks.
+  </Accordion>
+  
+  <Accordion title="Is there a limit to how many tasks I can lock?">
+    No, you can lock as many tasks as needed. The lock is just a boolean flag with minimal storage overhead.
+  </Accordion>
+  
+  <Accordion title="Can I lock a task temporarily?">
+    Currently, locking is a permanent state until manually changed. You could extend the model to include a `locked_until` timestamp field for time-based locking.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Managing Tasks" icon="list-check" href="/guide/managing-tasks">
+    Learn the basics of adding, completing, and deleting tasks
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/guide/troubleshooting">
+    Solutions to common issues with the ToDo app
+  </Card>
+</CardGroup>

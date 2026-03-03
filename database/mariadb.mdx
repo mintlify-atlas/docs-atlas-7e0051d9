@@ -1,0 +1,471 @@
+---
+title: 'MariaDB Setup'
+description: 'Configure MariaDB for production deployment'
+---
+
+## Overview
+
+MariaDB is a MySQL-compatible, production-ready relational database. It offers excellent performance, reliability, and scalability for multi-user environments.
+
+<Note>
+  MariaDB is recommended for production deployments where you need robust concurrent access and transaction support.
+</Note>
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install MariaDB Server">
+    <Tabs>
+      <Tab title="Ubuntu/Debian">
+        ```bash
+        sudo apt update
+        sudo apt install mariadb-server mariadb-client
+        ```
+      </Tab>
+      
+      <Tab title="CentOS/RHEL">
+        ```bash
+        sudo yum install mariadb-server mariadb
+        sudo systemctl start mariadb
+        sudo systemctl enable mariadb
+        ```
+      </Tab>
+      
+      <Tab title="macOS">
+        ```bash
+        brew install mariadb
+        brew services start mariadb
+        ```
+      </Tab>
+      
+      <Tab title="Docker">
+        ```bash
+        docker run -d \
+          --name mariadb \
+          -e MYSQL_ROOT_PASSWORD=your_password \
+          -e MYSQL_DATABASE=todo_db \
+          -p 3306:3306 \
+          mariadb:latest
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Secure MariaDB installation">
+    ```bash
+    sudo mysql_secure_installation
+    ```
+    
+    Follow the prompts to:
+    - Set root password
+    - Remove anonymous users
+    - Disallow root login remotely
+    - Remove test database
+  </Step>
+  
+  <Step title="Install Python driver">
+    The application uses PyMySQL to connect to MariaDB:
+    
+    ```bash
+    pip install pymysql
+    ```
+  </Step>
+</Steps>
+
+## Database Setup
+
+### Create Database and User
+
+Connect to MariaDB as root:
+
+```bash
+mysql -u root -p
+```
+
+Create the database and user:
+
+```sql
+-- Create database
+CREATE DATABASE todo_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Create user with password
+CREATE USER 'todouser'@'localhost' IDENTIFIED BY 'your_secure_password';
+
+-- Grant privileges
+GRANT ALL PRIVILEGES ON todo_db.* TO 'todouser'@'localhost';
+
+-- Flush privileges
+FLUSH PRIVILEGES;
+
+-- Verify
+SHOW GRANTS FOR 'todouser'@'localhost';
+
+-- Exit
+EXIT;
+```
+
+<Warning>
+  Replace `your_secure_password` with a strong password. Never use default passwords in production!
+</Warning>
+
+## Configuration
+
+### Database Config
+
+Update your `db-config.yaml` to use MariaDB:
+
+```yaml db-config.yaml
+engine: mariadb
+
+sqlite:
+  database: /full/path/to/todo.db
+
+mariadb:
+  user: todouser
+  password: your_secure_password
+  host: localhost
+  port: 3306
+  database: todo_db
+
+postgresql:
+  user: postgres
+  password: pgpass
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+
+### Connection URI
+
+The application constructs the MariaDB connection string:
+
+```python app/db_utils.py
+elif engine == "mariadb":
+    mdb = cfg["mariadb"]
+    return f"mysql+pymysql://{mdb['user']}:{mdb['password']}@{mdb['host']}:{mdb['port']}/{mdb['database']}"
+```
+
+This generates a URI like:
+```
+mysql+pymysql://todouser:your_secure_password@localhost:3306/todo_db
+```
+
+### Configuration Options
+
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| `user` | Database username | - | Yes |
+| `password` | Database password | - | Yes |
+| `host` | Database server hostname | `localhost` | Yes |
+| `port` | Database server port | `3306` | Yes |
+| `database` | Database name | - | Yes |
+
+## Database Initialization
+
+### Automatic Initialization
+
+SQLAlchemy automatically creates tables when the application starts:
+
+```python app/__init__.py
+with app.app_context():
+    from . import routes
+    from .models import Task
+    db.create_all()  # Creates tables automatically
+```
+
+### Manual Initialization
+
+Use the provided initialization script for manual setup:
+
+```bash scripts/init_db_mariadb.sh
+#!/bin/bash
+
+DB_NAME="todo_db"
+USER="your_user"
+PASSWORD="your_password"
+HOST="localhost"
+PORT="3306"
+
+echo "Initializing MariaDB schema..."
+
+mysql -u"$USER" -p"$PASSWORD" -h "$HOST" -P "$PORT" "$DB_NAME" <<EOF
+CREATE TABLE IF NOT EXISTS task (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    locked BOOLEAN DEFAULT FALSE
+);
+EOF
+
+if [ $? -ne 0 ]; then
+  echo "Failed!"
+  exit 1
+else
+  echo "MariaDB schema initialized."
+  exit 0
+fi
+```
+
+<Steps>
+  <Step title="Update script credentials">
+    Edit the script and replace the credentials:
+    
+    ```bash
+    nano scripts/init_db_mariadb.sh
+    ```
+    
+    Update:
+    - `USER="todouser"`
+    - `PASSWORD="your_secure_password"`
+    - `DB_NAME="todo_db"`
+  </Step>
+  
+  <Step title="Make script executable">
+    ```bash
+    chmod +x scripts/init_db_mariadb.sh
+    ```
+  </Step>
+  
+  <Step title="Run initialization">
+    ```bash
+    ./scripts/init_db_mariadb.sh
+    ```
+    
+    Expected output:
+    ```
+    Initializing MariaDB schema...
+    MariaDB schema initialized.
+    ```
+  </Step>
+</Steps>
+
+## Database Schema
+
+The MariaDB schema matches the SQLAlchemy model:
+
+<CodeGroup>
+
+```sql Raw SQL Schema
+CREATE TABLE IF NOT EXISTS task (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    completed BOOLEAN DEFAULT FALSE,
+    locked BOOLEAN DEFAULT FALSE
+);
+```
+
+```python SQLAlchemy Model
+from . import db
+
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+</CodeGroup>
+
+### Field Mappings
+
+| SQLAlchemy Type | MariaDB Type | Notes |
+|-----------------|--------------|-------|
+| `db.Integer` (PK) | `INT AUTO_INCREMENT` | Auto-incrementing primary key |
+| `db.String(255)` | `VARCHAR(255)` | Variable-length string |
+| `db.Boolean` | `BOOLEAN` | Stored as TINYINT(1) |
+
+## Verifying the Database
+
+### Using MariaDB CLI
+
+Connect to the database:
+
+```bash
+mysql -u todouser -p todo_db
+```
+
+Inspect the database:
+
+```sql
+-- Show tables
+SHOW TABLES;
+
+-- Describe task table
+DESCRIBE task;
+
+-- Query all tasks
+SELECT * FROM task;
+
+-- Check table status
+SHOW TABLE STATUS LIKE 'task';
+
+-- Exit
+EXIT;
+```
+
+### Common Operations
+
+<Accordion title="View database size">
+  ```sql
+  SELECT 
+    table_name AS 'Table',
+    ROUND(((data_length + index_length) / 1024 / 1024), 2) AS 'Size (MB)'
+  FROM information_schema.TABLES
+  WHERE table_schema = 'todo_db';
+  ```
+</Accordion>
+
+<Accordion title="Check connection count">
+  ```sql
+  SHOW STATUS WHERE variable_name = 'Threads_connected';
+  ```
+</Accordion>
+
+<Accordion title="View table indexes">
+  ```sql
+  SHOW INDEX FROM task;
+  ```
+</Accordion>
+
+<Accordion title="Backup database">
+  ```bash
+  mysqldump -u todouser -p todo_db > todo_db_backup.sql
+  ```
+</Accordion>
+
+<Accordion title="Restore database">
+  ```bash
+  mysql -u todouser -p todo_db < todo_db_backup.sql
+  ```
+</Accordion>
+
+## Performance Optimization
+
+### Indexing
+
+Add indexes for frequently queried columns:
+
+```sql
+-- Index on completed status for filtering
+CREATE INDEX idx_completed ON task(completed);
+
+-- Index on locked status
+CREATE INDEX idx_locked ON task(locked);
+
+-- Composite index for common queries
+CREATE INDEX idx_completed_locked ON task(completed, locked);
+```
+
+### Connection Pooling
+
+Configure SQLAlchemy connection pool settings:
+
+```python
+# In app/__init__.py or config
+app.config['SQLALCHEMY_POOL_SIZE'] = 10
+app.config['SQLALCHEMY_POOL_RECYCLE'] = 3600
+app.config['SQLALCHEMY_POOL_TIMEOUT'] = 30
+app.config['SQLALCHEMY_MAX_OVERFLOW'] = 20
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection refused">
+    **Error**: `Can't connect to MySQL server on 'localhost'`
+    
+    **Solution**:
+    - Verify MariaDB is running: `sudo systemctl status mariadb`
+    - Start MariaDB: `sudo systemctl start mariadb`
+    - Check port 3306 is open: `sudo netstat -tlnp | grep 3306`
+    - Verify firewall rules allow connection
+  </Accordion>
+  
+  <Accordion title="Access denied">
+    **Error**: `Access denied for user 'todouser'@'localhost'`
+    
+    **Solution**:
+    - Verify credentials in `db-config.yaml` are correct
+    - Check user exists: `SELECT User, Host FROM mysql.user;`
+    - Verify grants: `SHOW GRANTS FOR 'todouser'@'localhost';`
+    - Recreate user if needed (see Database Setup section)
+  </Accordion>
+  
+  <Accordion title="Unknown database">
+    **Error**: `Unknown database 'todo_db'`
+    
+    **Solution**:
+    - Create the database: `CREATE DATABASE todo_db;`
+    - Verify databases: `SHOW DATABASES;`
+    - Check `database` field in `db-config.yaml` matches
+  </Accordion>
+  
+  <Accordion title="Table doesn't exist">
+    **Error**: `Table 'todo_db.task' doesn't exist`
+    
+    **Solution**:
+    - Run initialization script: `./scripts/init_db_mariadb.sh`
+    - Or let SQLAlchemy create it by starting the app
+    - Verify with: `SHOW TABLES;`
+  </Accordion>
+  
+  <Accordion title="PyMySQL not installed">
+    **Error**: `ModuleNotFoundError: No module named 'pymysql'`
+    
+    **Solution**:
+    ```bash
+    pip install pymysql
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<Card title="Security Checklist" icon="shield">
+  - Use strong, unique passwords for database users
+  - Limit user privileges (grant only what's needed)
+  - Keep MariaDB updated to latest stable version
+  - Use SSL/TLS for remote connections
+  - Disable remote root access
+  - Regular backup strategy
+  - Monitor slow query log for optimization
+  - Use environment variables for credentials, not hardcoded values
+</Card>
+
+## Remote Access
+
+To connect from a remote host:
+
+```sql
+-- Create user for remote access
+CREATE USER 'todouser'@'%' IDENTIFIED BY 'your_secure_password';
+GRANT ALL PRIVILEGES ON todo_db.* TO 'todouser'@'%';
+FLUSH PRIVILEGES;
+```
+
+Update MariaDB config to bind to all interfaces:
+
+```ini /etc/mysql/mariadb.conf.d/50-server.cnf
+[mysqld]
+bind-address = 0.0.0.0
+```
+
+Restart MariaDB:
+```bash
+sudo systemctl restart mariadb
+```
+
+<Warning>
+  Remote access should be restricted by firewall rules. Only allow connections from trusted IP addresses.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Overview" icon="database" href="/database/overview">
+    Learn about the database architecture
+  </Card>
+  <Card title="PostgreSQL Setup" icon="database" href="/database/postgresql">
+    Explore PostgreSQL configuration
+  </Card>
+</CardGroup>

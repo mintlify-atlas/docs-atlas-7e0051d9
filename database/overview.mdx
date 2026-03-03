@@ -1,0 +1,208 @@
+---
+title: 'Database Architecture'
+description: 'Multi-database support and architecture overview'
+---
+
+## Overview
+
+The Flask ToDo App supports three database engines out of the box:
+
+<CardGroup cols={3}>
+  <Card title="SQLite" icon="database" href="/database/sqlite">
+    Lightweight, file-based database for local development
+  </Card>
+  <Card title="MariaDB" icon="database" href="/database/mariadb">
+    Production-ready MySQL-compatible database
+  </Card>
+  <Card title="PostgreSQL" icon="database" href="/database/postgresql">
+    Advanced open-source relational database
+  </Card>
+</CardGroup>
+
+## Architecture
+
+The application uses a flexible database architecture that allows you to switch between different database engines through configuration.
+
+### Database URI Construction
+
+The `construct_db_uri()` function in `app/db_utils.py` handles database connection string generation:
+
+```python app/db_utils.py
+engine_type = None
+
+def construct_db_uri(cfg):
+    global engine_type
+    engine_type = cfg.get("engine")
+    engine = engine_type
+
+    if engine == "sqlite":
+        sqlite_cfg = cfg["sqlite"]
+        return f"sqlite:///{sqlite_cfg['database']}"
+
+    elif engine == "mariadb":
+        mdb = cfg["mariadb"]
+        return f"mysql+pymysql://{mdb['user']}:{mdb['password']}@{mdb['host']}:{mdb['port']}/{mdb['database']}"
+
+    elif engine == "postgresql":
+        pg = cfg["postgresql"]
+        return f"postgresql+psycopg2://{pg['user']}:{pg['password']}@{pg['host']}:{pg['port']}/{pg['database']}"
+
+    else:
+        raise ValueError(f"Unsupported engine: {engine}")
+
+def get_engine_type():
+    return engine_type
+```
+
+### Configuration Flow
+
+<Steps>
+  <Step title="Load main config">
+    The application loads `config.yaml` which contains the path to the database configuration file.
+    
+    ```yaml config.yaml
+    database_config_path: "/full/path/to/db-config.yaml"
+    
+    flask:
+      port: 8080
+      debug: false
+    ```
+  </Step>
+  
+  <Step title="Load database config">
+    The `load_app_config()` function reads the database config file specified in the main config.
+    
+    ```python app/config.py
+    def load_app_config():
+        with open("config.yaml", "r") as f:
+            cfg = yaml.safe_load(f)
+    
+        db_config_path = cfg["database_config_path"]
+    
+        if not os.path.isfile(db_config_path):
+            raise FileNotFoundError(f"Database config file not found: {db_config_path}")
+    
+        with open(db_config_path, "r") as f:
+            db_cfg = yaml.safe_load(f)
+    
+        db_uri = construct_db_uri(db_cfg)
+        return {
+            "SQLALCHEMY_DATABASE_URI": db_uri,
+            "style": cfg.get("style", {}),
+            "flask": cfg.get("flask", {"port": 8080, "debug": False})
+        }
+    ```
+  </Step>
+  
+  <Step title="Initialize SQLAlchemy">
+    The application factory creates the Flask app and initializes the database connection.
+    
+    ```python app/__init__.py
+    def create_app():
+        app = Flask(__name__)
+        
+        config = load_app_config()
+        app.config['SQLALCHEMY_DATABASE_URI'] = config['SQLALCHEMY_DATABASE_URI']
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        app.config['style'] = config.get('style', {})
+    
+        db.init_app(app)
+    
+        with app.app_context():
+            from . import routes
+            from .models import Task
+            db.create_all()
+    
+        return app
+    ```
+  </Step>
+</Steps>
+
+## Database Schema
+
+All database engines use the same schema structure through SQLAlchemy ORM:
+
+```python app/models.py
+from . import db
+
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    locked = db.Column(db.Boolean, default=False)
+```
+
+### Task Table Structure
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | Integer | Primary Key, Auto-increment | Unique task identifier |
+| `name` | String(255) | Not Null | Task description |
+| `completed` | Boolean | Default: False | Task completion status |
+| `locked` | Boolean | Default: False | Task lock status |
+
+<Note>
+  The schema is automatically created by SQLAlchemy using `db.create_all()` when the application starts. However, initialization scripts are provided for manual setup if needed.
+</Note>
+
+## Configuration File
+
+The `db-config.yaml` file contains all database connection parameters:
+
+```yaml db-config.yaml
+engine: sqlite
+
+sqlite:
+  database: /full/path/to/todo.db
+
+mariadb:
+  user: root
+  password: mariadbpass
+  host: localhost
+  port: 3306
+  database: todo_db
+
+postgresql:
+  user: postgres
+  password: pgpass
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+
+<Warning>
+  Only the `engine` field and the corresponding database section are used. Set `engine` to `sqlite`, `mariadb`, or `postgresql` to select your database.
+</Warning>
+
+## Switching Databases
+
+To switch between databases:
+
+1. Update the `engine` field in `db-config.yaml`
+2. Ensure the corresponding database section has correct credentials
+3. Restart the application
+
+```yaml Example: Switching to PostgreSQL
+engine: postgresql
+
+postgresql:
+  user: postgres
+  password: your_password
+  host: localhost
+  port: 5432
+  database: todo_db
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="SQLite Setup" icon="database" href="/database/sqlite">
+    Set up SQLite for local development
+  </Card>
+  <Card title="MariaDB Setup" icon="database" href="/database/mariadb">
+    Configure MariaDB for production
+  </Card>
+  <Card title="PostgreSQL Setup" icon="database" href="/database/postgresql">
+    Deploy with PostgreSQL
+  </Card>
+</CardGroup>
